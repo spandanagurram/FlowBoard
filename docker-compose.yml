@@ -1,1 +1,15 @@
-# Placeholder for future local service orchestration configuration.
+services:
+  postgres:
+    image: postgres:17
+    container_name: flowboard_postgres
+    environment:
+      POSTGRES_DB: flowboard
+      POSTGRES_USER: flowboard
+      POSTGRES_PASSWORD: flowboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
