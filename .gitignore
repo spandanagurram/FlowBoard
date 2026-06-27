@@ -1,3 +1,8 @@
 # Files and directories intentionally excluded from version control.
 .env
 backend/.env
+venv/
+
+# Python
+__pycache__/
+*.pyc
