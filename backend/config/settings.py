@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'apps.common.apps.CommonConfig',
     'apps.accounts.apps.AccountsConfig',
+    'apps.workspaces.apps.WorkspacesConfig',
 ]
 
 MIDDLEWARE = [
