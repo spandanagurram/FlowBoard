@@ -1,7 +1,19 @@
+from datetime import timedelta
+import secrets
+
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from apps.common.models import BaseModel
+
+
+def generate_invitation_token():
+    return secrets.token_urlsafe()
+
+
+def get_invitation_expiry():
+    return timezone.now() + timedelta(days=7)
 
 
 class Role(models.TextChoices):
@@ -9,6 +21,20 @@ class Role(models.TextChoices):
     ADMIN = "ADMIN", "Admin"
     MEMBER = "MEMBER", "Member"
     VIEWER = "VIEWER", "Viewer"
+
+
+class InvitationRole(models.TextChoices):
+    ADMIN = "ADMIN", "Admin"
+    MEMBER = "MEMBER", "Member"
+    VIEWER = "VIEWER", "Viewer"
+
+
+class InvitationStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    ACCEPTED = "ACCEPTED", "Accepted"
+    REJECTED = "REJECTED", "Rejected"
+    REVOKED = "REVOKED", "Revoked"
+    EXPIRED = "EXPIRED", "Expired"
 
 
 class Workspace(BaseModel):
@@ -75,3 +101,47 @@ class WorkspaceMember(BaseModel):
 
     def __str__(self):
         return f"{self.workspace.name} - {self.user.email} ({self.role})"
+
+
+class WorkspaceInvitation(BaseModel):
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name="invitations",
+    )
+    email = models.EmailField()
+    role = models.CharField(
+        max_length=20,
+        choices=InvitationRole.choices,
+    )
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_workspace_invitations",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=InvitationStatus.choices,
+        default=InvitationStatus.PENDING,
+    )
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+        default=generate_invitation_token,
+    )
+    expires_at = models.DateTimeField(default=get_invitation_expiry)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "email"],
+                condition=Q(status=InvitationStatus.PENDING),
+                name="unique_pending_workspace_invitation",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.workspace.name} invitation for {self.email} ({self.status})"
