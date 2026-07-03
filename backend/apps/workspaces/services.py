@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
+from apps.workspaces.tasks import send_workspace_invitation_email
 
 from .models import (
     InvitationRole,
@@ -108,6 +109,19 @@ class InvitationService:
                 ).exists()
                 if active_membership_exists:
                     raise serializers.ValidationError("User is already a member.")
+            
+            # Expire stale pending invitations for this workspace and email.
+            now = timezone.now()
+
+            WorkspaceInvitation.objects.filter(
+                workspace=workspace,
+                email=invitation_email,
+                status=InvitationStatus.PENDING,
+                expires_at__lte=now,
+            ).update(
+                status=InvitationStatus.EXPIRED,
+                updated_at=now,
+            )
 
             # Prevent duplicate pending invitations for the same workspace and email.
             pending_invitation_exists = WorkspaceInvitation.objects.filter(
@@ -119,12 +133,14 @@ class InvitationService:
                 raise serializers.ValidationError("Invitation already pending.")
 
             # Create the workspace invitation.
-            return WorkspaceInvitation.objects.create(
+            invitation = WorkspaceInvitation.objects.create(
                 workspace=workspace,
                 email=invitation_email,
                 role=invitation_role,
                 invited_by=requester,
             )
+            send_workspace_invitation_email.delay(str(invitation.id))
+            return invitation
 
     @staticmethod
     def accept_invitation(token, user):
@@ -260,3 +276,21 @@ class InvitationService:
             invitation.status = InvitationStatus.REVOKED
             invitation.save(update_fields=["status", "updated_at"])
             return invitation
+    
+    @staticmethod
+    def expire_pending_invitations() -> int:
+        """
+        Expire all pending invitations whose expiry time has passed.
+
+        Returns:
+            int: Number of invitations expired.
+        """
+        now = timezone.now()
+
+        return WorkspaceInvitation.objects.filter(
+            status=InvitationStatus.PENDING,
+            expires_at__lte=now,
+        ).update(
+            status=InvitationStatus.EXPIRED,
+            updated_at=now,
+    )
