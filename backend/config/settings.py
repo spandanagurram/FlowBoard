@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'apps.accounts.apps.AccountsConfig',
     'apps.workspaces.apps.WorkspacesConfig',
     'apps.projects.apps.ProjectsConfig',
+    'apps.tasks.apps.TasksConfig',
     'django_celery_beat',
 ]
 

@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from .views import CreateProjectAPIView, ProjectDetailAPIView
 
@@ -9,4 +9,5 @@ urlpatterns = [
 
 project_urlpatterns = [
     path("<uuid:project_id>/", ProjectDetailAPIView.as_view(), name="project-detail"),
+    path("<uuid:project_id>/tasks/", include("apps.tasks.urls")),
 ]

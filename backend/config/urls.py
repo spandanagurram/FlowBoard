@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from apps.projects.urls import project_urlpatterns
+from apps.tasks.urls import task_urlpatterns
 from apps.workspaces.urls import invitation_urlpatterns
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
     path('api/workspaces/', include('apps.workspaces.urls')),
     path('api/invitations/', include(invitation_urlpatterns)),
     path('api/projects/', include(project_urlpatterns)),
+    path('api/tasks/', include(task_urlpatterns)),
 ]
