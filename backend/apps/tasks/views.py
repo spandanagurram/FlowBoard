@@ -3,7 +3,7 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .serializers import TaskCreateSerializer, TaskSerializer
+from .serializers import TaskCreateSerializer, TaskSerializer, TaskUpdateSerializer
 from .services import TaskService
 
 
@@ -43,6 +43,11 @@ class TaskDetailAPIView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
     serializer_class = TaskSerializer
 
+    def get_serializer_class(self):
+        if self.request.method == "PATCH":
+            return TaskUpdateSerializer
+        return self.serializer_class
+
     def get(self, request, task_id):
         task = TaskService.get_task_detail(
             requester=request.user,
@@ -50,3 +55,28 @@ class TaskDetailAPIView(GenericAPIView):
         )
         serializer = self.get_serializer(task)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, task_id):
+        serializer = self.get_serializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        if not serializer.validated_data:
+            return Response(
+                {"detail": "At least one field must be provided for update."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        task = TaskService.update_task(
+            requester=request.user,
+            task_id=task_id,
+            validated_data=serializer.validated_data,
+        )
+        response_serializer = TaskSerializer(task)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request, task_id):
+        TaskService.delete_task(
+            requester=request.user,
+            task_id=task_id,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -44,6 +44,46 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         return title
 
 
+class TaskUpdateSerializer(serializers.ModelSerializer):
+    assignee = serializers.UUIDField(required=False, allow_null=True)
+
+    class Meta:
+        model = Task
+        fields = (
+            "title",
+            "description",
+            "priority",
+            "assignee",
+            "due_date",
+            "status",
+        )
+        extra_kwargs = {
+            "title": {"required": False},
+            "description": {"required": False},
+            "priority": {"required": False},
+            "due_date": {"required": False, "allow_null": True},
+            "status": {"required": False},
+        }
+
+    def validate(self, attrs):
+        allowed_fields = set(self.fields.keys())
+        invalid_fields = set(self.initial_data.keys()) - allowed_fields
+        if invalid_fields:
+            raise serializers.ValidationError(
+                {
+                    field: "This field cannot be set."
+                    for field in sorted(invalid_fields)
+                }
+            )
+        return attrs
+
+    def validate_title(self, value):
+        title = value.strip()
+        if not title:
+            raise serializers.ValidationError("Task title cannot be empty.")
+        return title
+
+
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
