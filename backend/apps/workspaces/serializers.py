@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import InvitationRole, Workspace, WorkspaceInvitation
+from .models import InvitationRole, Role, Workspace, WorkspaceInvitation, WorkspaceMember
 
 
 class WorkspaceCreateSerializer(serializers.ModelSerializer):
@@ -8,18 +8,55 @@ class WorkspaceCreateSerializer(serializers.ModelSerializer):
         model = Workspace
         fields = ("name", "description", "logo")
 
+    def validate(self, attrs):
+        allowed_fields = set(self.fields.keys())
+        invalid_fields = set(self.initial_data.keys()) - allowed_fields
+        if invalid_fields:
+            raise serializers.ValidationError(
+                {
+                    field: "This field cannot be set."
+                    for field in sorted(invalid_fields)
+                }
+            )
+        return attrs
+
     def validate_name(self, value):
         name = value.strip()
         if not name:
             raise serializers.ValidationError("Workspace name cannot be empty.")
 
-        request = self.context.get("request")
-        owner = getattr(request, "user", None)
-        if owner and Workspace.objects.filter(owner=owner, name__iexact=name).exists():
+        if Workspace.objects.filter(
+            name__iexact=name,
+            is_deleted=False,
+        ).exists():
             raise serializers.ValidationError(
-                "You already have a workspace with this name."
+                "Workspace name already exists."
             )
 
+        return name
+
+
+class WorkspaceUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Workspace
+        fields = ("name", "description")
+
+    def validate(self, attrs):
+        allowed_fields = set(self.fields.keys())
+        invalid_fields = set(self.initial_data.keys()) - allowed_fields
+        if invalid_fields:
+            raise serializers.ValidationError(
+                {
+                    field: "This field cannot be updated."
+                    for field in sorted(invalid_fields)
+                }
+            )
+        return attrs
+
+    def validate_name(self, value):
+        name = value.strip()
+        if not name:
+            raise serializers.ValidationError("Workspace name cannot be empty.")
         return name
 
 
@@ -32,6 +69,55 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             "description",
             "logo",
             "owner",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
+class WorkspaceTransferOwnershipSerializer(serializers.Serializer):
+    user_id = serializers.UUIDField()
+
+    def validate(self, attrs):
+        allowed_fields = set(self.fields.keys())
+        invalid_fields = set(self.initial_data.keys()) - allowed_fields
+        if invalid_fields:
+            raise serializers.ValidationError(
+                {
+                    field: "This field cannot be set."
+                    for field in sorted(invalid_fields)
+                }
+            )
+        return attrs
+
+
+class WorkspaceMemberRoleUpdateSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=(Role.ADMIN, Role.MEMBER, Role.VIEWER))
+
+    def validate(self, attrs):
+        allowed_fields = set(self.fields.keys())
+        invalid_fields = set(self.initial_data.keys()) - allowed_fields
+        if invalid_fields:
+            raise serializers.ValidationError(
+                {
+                    field: "This field cannot be updated."
+                    for field in sorted(invalid_fields)
+                }
+            )
+        return attrs
+
+
+class WorkspaceMemberSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkspaceMember
+        fields = (
+            "id",
+            "workspace",
+            "user",
+            "role",
+            "invited_by",
+            "joined_at",
+            "is_active",
             "created_at",
             "updated_at",
         )

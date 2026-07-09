@@ -4,6 +4,7 @@ import secrets
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 from apps.common.models import BaseModel
 
@@ -50,13 +51,33 @@ class Workspace(BaseModel):
         on_delete=models.CASCADE,
         related_name="owned_workspaces",
     )
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="deleted_workspaces",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="updated_workspaces",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(
-                fields=["owner", "name"],
-                name="unique_workspace_name_per_owner",
+                Lower("name"),
+                condition=Q(is_deleted=False),
+                name="unique_active_workspace_name",
             ),
         ]
 

@@ -12,7 +12,7 @@ def send_workspace_invitation_email(invitation_id: str) -> None:
         invitation = (
             WorkspaceInvitation.objects
             .select_related("workspace", "invited_by")
-            .get(id=invitation_id)
+            .get(id=invitation_id, workspace__is_deleted=False)
         )
     except WorkspaceInvitation.DoesNotExist:
         # We'll replace this with proper logging later.

@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.exceptions import NotFound
 from apps.workspaces.tasks import send_workspace_invitation_email
 
 from .models import (
@@ -18,13 +19,78 @@ User = get_user_model()
 
 
 class WorkspaceService:
+    WORKSPACE_ORDERING_FIELDS = {"created_at", "updated_at", "name"}
+
+    @staticmethod
+    def _get_active_membership(workspace, requester, lock=False):
+        memberships = WorkspaceMember.objects.filter(
+            workspace=workspace,
+            user=requester,
+            is_active=True,
+        ).select_related("user", "workspace")
+        if lock:
+            memberships = memberships.select_for_update()
+        return memberships.first()
+
+    @staticmethod
+    def _ensure_active_member(workspace, requester, lock=False):
+        membership = WorkspaceService._get_active_membership(
+            workspace=workspace,
+            requester=requester,
+            lock=lock,
+        )
+        if membership is None:
+            raise serializers.ValidationError(
+                "You are not a member of this workspace."
+            )
+        return membership
+
+    @staticmethod
+    def _ensure_owner(workspace, requester, lock=False):
+        membership = WorkspaceService._ensure_active_member(
+            workspace=workspace,
+            requester=requester,
+            lock=lock,
+        )
+        if membership.role != Role.OWNER:
+            raise serializers.ValidationError(
+                "You do not have permission to manage this workspace."
+            )
+        return membership
+
+    @staticmethod
+    def _get_active_workspace(workspace_id, lock=False):
+        workspaces = Workspace.objects.select_related("owner").filter(
+            id=workspace_id,
+            is_deleted=False,
+        )
+        if lock:
+            workspaces = workspaces.select_for_update()
+
+        workspace = workspaces.first()
+        if workspace is None:
+            raise NotFound("Workspace not found.")
+        return workspace
+
     @staticmethod
     def create_workspace(owner, validated_data):
         try:
             with transaction.atomic():
+                name = validated_data["name"].strip()
+                if Workspace.objects.filter(
+                    name__iexact=name,
+                    is_deleted=False,
+                ).exists():
+                    raise serializers.ValidationError(
+                        {"name": "Workspace name already exists."}
+                    )
+
                 workspace = Workspace.objects.create(
                     owner=owner,
-                    **validated_data,
+                    name=name,
+                    description=validated_data.get("description", ""),
+                    logo=validated_data.get("logo"),
+                    updated_by=owner,
                 )
                 WorkspaceMember.objects.create(
                     workspace=workspace,
@@ -36,11 +102,252 @@ class WorkspaceService:
                 return workspace
         except IntegrityError as exc:
             name = validated_data.get("name", "")
-            if Workspace.objects.filter(owner=owner, name__iexact=name).exists():
+            if Workspace.objects.filter(
+                name__iexact=name,
+                is_deleted=False,
+            ).exists():
                 raise serializers.ValidationError(
-                    {"name": "You already have a workspace with this name."}
+                    {"name": "Workspace name already exists."}
                 ) from exc
             raise
+
+    @staticmethod
+    def list_workspaces(requester, search=None, ordering=None):
+        workspaces = Workspace.objects.select_related("owner").filter(
+            members__user=requester,
+            members__is_active=True,
+            is_deleted=False,
+        ).distinct()
+
+        if search:
+            workspaces = workspaces.filter(name__icontains=search.strip())
+
+        ordering_fields = WorkspaceService._get_ordering_fields(ordering)
+        return workspaces.order_by(*ordering_fields)
+
+    @staticmethod
+    def get_workspace_detail(requester, workspace_id):
+        workspace = WorkspaceService._get_active_workspace(workspace_id=workspace_id)
+        WorkspaceService._ensure_active_member(
+            workspace=workspace,
+            requester=requester,
+        )
+        return workspace
+
+    @staticmethod
+    def update_workspace(requester, workspace_id, validated_data):
+        with transaction.atomic():
+            workspace = WorkspaceService._get_active_workspace(
+                workspace_id=workspace_id,
+                lock=True,
+            )
+            WorkspaceService._ensure_owner(
+                workspace=workspace,
+                requester=requester,
+            )
+
+            update_fields = ["updated_by", "updated_at"]
+            if "name" in validated_data:
+                name = validated_data["name"].strip()
+                if Workspace.objects.filter(
+                    name__iexact=name,
+                    is_deleted=False,
+                ).exclude(id=workspace.id).exists():
+                    raise serializers.ValidationError(
+                        {"name": "Workspace name already exists."}
+                    )
+                workspace.name = name
+                update_fields.append("name")
+
+            if "description" in validated_data:
+                workspace.description = validated_data["description"]
+                update_fields.append("description")
+
+            workspace.updated_by = requester
+            workspace.save(update_fields=update_fields)
+            return workspace
+
+    @staticmethod
+    def soft_delete_workspace(requester, workspace_id):
+        with transaction.atomic():
+            workspace = WorkspaceService._get_active_workspace(
+                workspace_id=workspace_id,
+                lock=True,
+            )
+            WorkspaceService._ensure_owner(
+                workspace=workspace,
+                requester=requester,
+            )
+
+            workspace.is_deleted = True
+            workspace.deleted_at = timezone.now()
+            workspace.deleted_by = requester
+            workspace.updated_by = requester
+            workspace.save(
+                update_fields=[
+                    "is_deleted",
+                    "deleted_at",
+                    "deleted_by",
+                    "updated_by",
+                    "updated_at",
+                ]
+            )
+
+    @staticmethod
+    def transfer_ownership(requester, workspace_id, validated_data):
+        with transaction.atomic():
+            workspace = WorkspaceService._get_active_workspace(
+                workspace_id=workspace_id,
+                lock=True,
+            )
+            old_owner_membership = WorkspaceService._ensure_owner(
+                workspace=workspace,
+                requester=requester,
+                lock=True,
+            )
+
+            target_user_id = validated_data["user_id"]
+            if target_user_id == requester.id:
+                raise serializers.ValidationError(
+                    {"user_id": "Current owner cannot be the target user."}
+                )
+
+            target_user = User.objects.filter(id=target_user_id).first()
+            if target_user is None:
+                raise serializers.ValidationError({"user_id": "Target user not found."})
+
+            target_membership = WorkspaceMember.objects.select_for_update().filter(
+                workspace=workspace,
+                user=target_user,
+                is_active=True,
+            ).first()
+            if target_membership is None:
+                raise serializers.ValidationError(
+                    {"user_id": "Target user must be an active member of this workspace."}
+                )
+
+            if target_membership.role == Role.OWNER:
+                raise serializers.ValidationError(
+                    {"user_id": "Target user is already the owner."}
+                )
+
+            old_owner_membership.role = Role.ADMIN
+            old_owner_membership.save(update_fields=["role", "updated_at"])
+
+            target_membership.role = Role.OWNER
+            target_membership.save(update_fields=["role", "updated_at"])
+
+            workspace.owner = target_user
+            workspace.updated_by = requester
+            workspace.save(update_fields=["owner", "updated_by", "updated_at"])
+            return workspace
+
+    @staticmethod
+    def change_member_role(requester, workspace_id, user_id, validated_data):
+        with transaction.atomic():
+            workspace = WorkspaceService._get_active_workspace(
+                workspace_id=workspace_id,
+                lock=True,
+            )
+            requester_membership = WorkspaceService._ensure_active_member(
+                workspace=workspace,
+                requester=requester,
+                lock=True,
+            )
+
+            target_role = validated_data["role"]
+            if target_role == Role.OWNER:
+                raise serializers.ValidationError(
+                    {"role": "Owner role cannot be assigned from this endpoint."}
+                )
+
+            if user_id == requester.id:
+                raise serializers.ValidationError(
+                    {"user_id": "You cannot change your own role."}
+                )
+
+            target_user = User.objects.filter(id=user_id).first()
+            if target_user is None:
+                raise serializers.ValidationError({"user_id": "Target user not found."})
+
+            target_membership = WorkspaceMember.objects.select_for_update().filter(
+                workspace=workspace,
+                user=target_user,
+            ).select_related("user", "workspace").first()
+            if target_membership is None:
+                raise serializers.ValidationError(
+                    {"user_id": "Target user is not a member of this workspace."}
+                )
+
+            if not target_membership.is_active:
+                raise serializers.ValidationError(
+                    {"user_id": "Target user must be an active member of this workspace."}
+                )
+
+            WorkspaceService._ensure_can_change_member_role(
+                requester_membership=requester_membership,
+                target_membership=target_membership,
+                target_role=target_role,
+            )
+
+            target_membership.role = target_role
+            target_membership.save(update_fields=["role", "updated_at"])
+            return target_membership
+
+    @staticmethod
+    def _ensure_can_change_member_role(
+        requester_membership,
+        target_membership,
+        target_role,
+    ):
+        if target_membership.role == Role.OWNER:
+            raise serializers.ValidationError(
+                "Owner role cannot be changed from this endpoint."
+            )
+
+        if requester_membership.role == Role.OWNER:
+            return
+
+        if requester_membership.role == Role.ADMIN:
+            if target_membership.role == Role.ADMIN:
+                raise serializers.ValidationError(
+                    "Admins cannot modify other admins."
+                )
+
+            if target_role == Role.ADMIN:
+                raise serializers.ValidationError(
+                    {"role": "Admins cannot assign admin role."}
+                )
+
+            if target_membership.role in {Role.MEMBER, Role.VIEWER} and target_role in {
+                Role.MEMBER,
+                Role.VIEWER,
+            }:
+                return
+
+        raise serializers.ValidationError(
+            "You do not have permission to change this member role."
+        )
+
+    @staticmethod
+    def _get_ordering_fields(ordering):
+        if not ordering:
+            return ["-created_at"]
+
+        ordering_fields = []
+        for field in ordering.split(","):
+            field = field.strip()
+            if not field:
+                continue
+
+            field_name = field[1:] if field.startswith("-") else field
+            if field_name not in WorkspaceService.WORKSPACE_ORDERING_FIELDS:
+                raise serializers.ValidationError(
+                    {"ordering": "Invalid workspace ordering field."}
+                )
+            ordering_fields.append(field)
+
+        return ordering_fields or ["-created_at"]
 
 
 class InvitationService:
@@ -56,7 +363,10 @@ class InvitationService:
     def create_invitation(requester, workspace_id, validated_data):
         with transaction.atomic():
             # Fetch the workspace before checking workspace-scoped permissions.
-            workspace = Workspace.objects.filter(id=workspace_id).first()
+            workspace = Workspace.objects.filter(
+                id=workspace_id,
+                is_deleted=False,
+            ).first()
             if workspace is None:
                 raise serializers.ValidationError("Workspace not found.")
 
@@ -146,7 +456,13 @@ class InvitationService:
     def accept_invitation(token, user):
         with transaction.atomic():
             # Find the invitation by its secure token.
-            invitation = WorkspaceInvitation.objects.filter(token=token).first()
+            invitation = WorkspaceInvitation.objects.select_related(
+                "workspace",
+                "invited_by",
+            ).filter(
+                token=token,
+                workspace__is_deleted=False,
+            ).first()
             if invitation is None:
                 raise serializers.ValidationError("Invitation not found.")
 
@@ -207,7 +523,12 @@ class InvitationService:
     def reject_invitation(token, user):
         with transaction.atomic():
             # Find the invitation by its secure token.
-            invitation = WorkspaceInvitation.objects.filter(token=token).first()
+            invitation = WorkspaceInvitation.objects.select_related(
+                "workspace",
+            ).filter(
+                token=token,
+                workspace__is_deleted=False,
+            ).first()
             if invitation is None:
                 raise serializers.ValidationError("Invitation not found.")
 
@@ -235,7 +556,13 @@ class InvitationService:
     def revoke_invitation(invitation_id, requester):
         with transaction.atomic():
             # Find the invitation that should be revoked.
-            invitation = WorkspaceInvitation.objects.filter(id=invitation_id).first()
+            invitation = WorkspaceInvitation.objects.select_related(
+                "workspace",
+                "invited_by",
+            ).filter(
+                id=invitation_id,
+                workspace__is_deleted=False,
+            ).first()
             if invitation is None:
                 raise serializers.ValidationError("Invitation not found.")
 
@@ -290,6 +617,7 @@ class InvitationService:
         return WorkspaceInvitation.objects.filter(
             status=InvitationStatus.PENDING,
             expires_at__lte=now,
+            workspace__is_deleted=False,
         ).update(
             status=InvitationStatus.EXPIRED,
             updated_at=now,
