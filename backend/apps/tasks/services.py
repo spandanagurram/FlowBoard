@@ -6,6 +6,8 @@ from rest_framework.exceptions import NotFound
 
 from apps.projects.models import Project
 from apps.workspaces.models import Role, WorkspaceMember
+from apps.activities.models import ActivityAction
+from apps.activities.services import ActivityLogService
 
 from .models import Priority, Task, TaskStatus
 
@@ -233,7 +235,7 @@ class TaskService:
                 parent_task=parent_task,
             )
             try:
-                return Task.objects.create(
+                task = Task.objects.create(
                     project=project,
                     parent_task=parent_task,
                     task_number=task_number,
@@ -246,6 +248,18 @@ class TaskService:
                     created_by=requester,
                     updated_by=requester,
                 )
+                ActivityLogService.log_activity(
+                    workspace=project.workspace,
+                    actor=requester,
+                    action=ActivityAction.TASK_CREATED,
+                    description=(
+                        f"{ActivityLogService.get_actor_name(requester)} created "
+                        f"task {task.task_number}."
+                    ),
+                    entity_type="task",
+                    entity_id=task.id,
+                )
+                return task
             except IntegrityError as exc:
                 raise serializers.ValidationError(
                     "Task could not be created with the provided data."
@@ -295,6 +309,10 @@ class TaskService:
                 validated_data=validated_data,
             )
 
+            old_status = task.status
+            old_priority = task.priority
+            old_due_date = task.due_date
+            old_assignee = task.assignee
             update_fields = set()
             if "title" in validated_data:
                 TaskService._validate_unique_title(
@@ -346,6 +364,82 @@ class TaskService:
             update_fields.update({"updated_by", "updated_at"})
             task.save(update_fields=update_fields)
 
+            workspace = task.project.workspace
+            actor_name = ActivityLogService.get_actor_name(requester)
+            
+            if old_assignee != task.assignee:
+                if task.assignee is None:
+                    ActivityLogService.log_activity(
+                        workspace=workspace,
+                        actor=requester,
+                        action=ActivityAction.TASK_UNASSIGNED,
+                        description=f"{actor_name} unassigned task {task.task_number}.",
+                        entity_type="task",
+                        entity_id=task.id,
+                        metadata={
+                            "old_assignee": ActivityLogService.get_actor_name(old_assignee),
+                            "new_assignee": None,
+                        },
+                    )
+                else:
+                    ActivityLogService.log_activity(
+                        workspace=workspace,
+                        actor=requester,
+                        action=ActivityAction.TASK_ASSIGNED,
+                        description=(
+                            f"{actor_name} assigned task {task.task_number} to "
+                            f"{ActivityLogService.get_actor_name(task.assignee)}."
+                        ),
+                        entity_type="task",
+                        entity_id=task.id,
+                        metadata={
+                            "old_assignee": (
+                                ActivityLogService.get_actor_name(old_assignee)
+                                if old_assignee else None
+                            ),
+                            "new_assignee": ActivityLogService.get_actor_name(task.assignee),
+                        },
+                    )
+            if old_status != task.status:
+                ActivityLogService.log_activity(
+                    workspace=workspace,
+                    actor=requester,
+                    action=ActivityAction.TASK_STATUS_CHANGED,
+                    description=(
+                        f"{actor_name} changed task {task.task_number} status from "
+                        f"{old_status} to {task.status}."
+                    ),
+                    entity_type="task",
+                    entity_id=task.id,
+                    metadata={"old_status": old_status, "new_status": task.status},
+                )
+            if old_priority != task.priority:
+                ActivityLogService.log_activity(
+                    workspace=workspace,
+                    actor=requester,
+                    action=ActivityAction.TASK_PRIORITY_CHANGED,
+                    description=(
+                        f"{actor_name} changed task {task.task_number} priority from "
+                        f"{old_priority} to {task.priority}."
+                    ),
+                    entity_type="task",
+                    entity_id=task.id,
+                    metadata={"old_priority": old_priority, "new_priority": task.priority},
+                )
+            if old_due_date != task.due_date:
+                ActivityLogService.log_activity(
+                    workspace=workspace,
+                    actor=requester,
+                    action=ActivityAction.TASK_DUE_DATE_CHANGED,
+                    description=f"{actor_name} changed due date for task {task.task_number}.",
+                    entity_type="task",
+                    entity_id=task.id,
+                    metadata={
+                        "old_due_date": old_due_date.isoformat() if old_due_date else None,
+                        "new_due_date": task.due_date.isoformat() if task.due_date else None,
+                    },
+                )
+
         return task
 
     @staticmethod
@@ -373,6 +467,17 @@ class TaskService:
                     "updated_by",
                     "updated_at",
                 }
+            )
+            ActivityLogService.log_activity(
+                workspace=task.project.workspace,
+                actor=requester,
+                action=ActivityAction.TASK_DELETED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} deleted "
+                    f"task {task.task_number}."
+                ),
+                entity_type="task",
+                entity_id=task.id,
             )
 
         return task

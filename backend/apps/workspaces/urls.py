@@ -38,6 +38,10 @@ urlpatterns = [
         "<uuid:workspace_id>/projects/",
         include("apps.projects.urls"),
     ),
+    path(
+        "<uuid:workspace_id>/activities/",
+        include("apps.activities.urls"),
+    ),
 ]
 
 invitation_urlpatterns = [

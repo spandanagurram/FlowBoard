@@ -4,6 +4,8 @@ from rest_framework.exceptions import NotFound
 from rest_framework import serializers
 
 from apps.workspaces.models import Role, Workspace, WorkspaceMember
+from apps.activities.models import ActivityAction
+from apps.activities.services import ActivityLogService
 
 from .models import Project
 
@@ -60,7 +62,7 @@ class ProjectService:
                 )
 
             try:
-                return Project.objects.create(
+                project = Project.objects.create(
                     workspace=workspace,
                     name=name,
                     key=key,
@@ -68,6 +70,18 @@ class ProjectService:
                     created_by=requester,
                     updated_by=requester,
                 )
+                ActivityLogService.log_activity(
+                    workspace=workspace,
+                    actor=requester,
+                    action=ActivityAction.PROJECT_CREATED,
+                    description=(
+                        f"{ActivityLogService.get_actor_name(requester)} created "
+                        f"project {project.name}."
+                    ),
+                    entity_type="project",
+                    entity_id=project.id,
+                )
+                return project
             except IntegrityError as exc:
                 raise serializers.ValidationError(
                     "Project could not be created with the provided data."
@@ -165,6 +179,17 @@ class ProjectService:
 
             project.updated_by = requester
             project.save(update_fields=update_fields)
+            ActivityLogService.log_activity(
+                workspace=project.workspace,
+                actor=requester,
+                action=ActivityAction.PROJECT_UPDATED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} updated "
+                    f"project {project.name}."
+                ),
+                entity_type="project",
+                entity_id=project.id,
+            )
             return project
 
     @staticmethod
@@ -204,6 +229,17 @@ class ProjectService:
                     "updated_by",
                     "updated_at",
                 ]
+            )
+            ActivityLogService.log_activity(
+                workspace=project.workspace,
+                actor=requester,
+                action=ActivityAction.PROJECT_DELETED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} deleted "
+                    f"project {project.name}."
+                ),
+                entity_type="project",
+                entity_id=project.id,
             )
 
     @staticmethod

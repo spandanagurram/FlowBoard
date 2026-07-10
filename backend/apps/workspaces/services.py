@@ -4,6 +4,8 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound
 from apps.workspaces.tasks import send_workspace_invitation_email
+from apps.activities.models import ActivityAction
+from apps.activities.services import ActivityLogService
 
 from .models import (
     InvitationRole,
@@ -99,6 +101,17 @@ class WorkspaceService:
                     invited_by=None,
                     is_active=True,
                 )
+                ActivityLogService.log_activity(
+                    workspace=workspace,
+                    actor=owner,
+                    action=ActivityAction.WORKSPACE_CREATED,
+                    description=(
+                        f"{ActivityLogService.get_actor_name(owner)} created "
+                        f"workspace {workspace.name}."
+                    ),
+                    entity_type="workspace",
+                    entity_id=workspace.id,
+                )
                 return workspace
         except IntegrityError as exc:
             name = validated_data.get("name", "")
@@ -165,6 +178,17 @@ class WorkspaceService:
 
             workspace.updated_by = requester
             workspace.save(update_fields=update_fields)
+            ActivityLogService.log_activity(
+                workspace=workspace,
+                actor=requester,
+                action=ActivityAction.WORKSPACE_UPDATED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} updated "
+                    f"workspace {workspace.name}."
+                ),
+                entity_type="workspace",
+                entity_id=workspace.id,
+            )
             return workspace
 
     @staticmethod
@@ -191,6 +215,17 @@ class WorkspaceService:
                     "updated_by",
                     "updated_at",
                 ]
+            )
+            ActivityLogService.log_activity(
+                workspace=workspace,
+                actor=requester,
+                action=ActivityAction.WORKSPACE_DELETED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} deleted "
+                    f"workspace {workspace.name}."
+                ),
+                entity_type="workspace",
+                entity_id=workspace.id,
             )
 
     @staticmethod
@@ -240,6 +275,19 @@ class WorkspaceService:
             workspace.owner = target_user
             workspace.updated_by = requester
             workspace.save(update_fields=["owner", "updated_by", "updated_at"])
+            ActivityLogService.log_activity(
+                workspace=workspace,
+                actor=requester,
+                action=ActivityAction.WORKSPACE_TRANSFERRED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} transferred "
+                    f"workspace ownership to "
+                    f"{ActivityLogService.get_actor_name(target_user)}."
+                ),
+                entity_type="workspace",
+                entity_id=workspace.id,
+                metadata={"old_owner": str(requester.id), "new_owner": str(target_user.id)},
+            )
             return workspace
 
     @staticmethod
@@ -290,8 +338,23 @@ class WorkspaceService:
                 target_role=target_role,
             )
 
+            old_role = target_membership.role
             target_membership.role = target_role
             target_membership.save(update_fields=["role", "updated_at"])
+            ActivityLogService.log_activity(
+                workspace=workspace,
+                actor=requester,
+                action=ActivityAction.MEMBER_ROLE_CHANGED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} changed "
+                    f"{ActivityLogService.get_actor_name(target_user)}'s role from "
+                    f"{ActivityLogService.get_role_label(old_role)} to "
+                    f"{ActivityLogService.get_role_label(target_role)}."
+                ),
+                entity_type="workspace_member",
+                entity_id=target_membership.id,
+                metadata={"old_role": old_role, "new_role": target_role},
+            )
             return target_membership
 
     @staticmethod
@@ -449,6 +512,19 @@ class InvitationService:
                 role=invitation_role,
                 invited_by=requester,
             )
+            ActivityLogService.log_activity(
+                workspace=workspace,
+                actor=requester,
+                action=ActivityAction.INVITATION_SENT,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} invited "
+                    f"{invitation.email} as "
+                    f"{ActivityLogService.get_role_label(invitation.role)}."
+                ),
+                entity_type="workspace_invitation",
+                entity_id=invitation.id,
+                metadata={"email": invitation.email, "role": invitation.role},
+            )
             send_workspace_invitation_email.delay(str(invitation.id))
             return invitation
 
@@ -517,6 +593,17 @@ class InvitationService:
             invitation.status = InvitationStatus.ACCEPTED
             invitation.accepted_at = now
             invitation.save(update_fields=["status", "accepted_at", "updated_at"])
+            ActivityLogService.log_activity(
+                workspace=invitation.workspace,
+                actor=user,
+                action=ActivityAction.INVITATION_ACCEPTED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(user)} accepted the invitation."
+                ),
+                entity_type="workspace_invitation",
+                entity_id=invitation.id,
+                metadata={"email": invitation.email, "role": invitation.role},
+            )
             return invitation
 
     @staticmethod
@@ -550,6 +637,17 @@ class InvitationService:
             # Mark the pending invitation as rejected.
             invitation.status = InvitationStatus.REJECTED
             invitation.save(update_fields=["status", "updated_at"])
+            ActivityLogService.log_activity(
+                workspace=invitation.workspace,
+                actor=user,
+                action=ActivityAction.INVITATION_REJECTED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(user)} rejected the invitation."
+                ),
+                entity_type="workspace_invitation",
+                entity_id=invitation.id,
+                metadata={"email": invitation.email, "role": invitation.role},
+            )
             return invitation
 
     @staticmethod
@@ -602,6 +700,18 @@ class InvitationService:
             # Mark the pending invitation as revoked.
             invitation.status = InvitationStatus.REVOKED
             invitation.save(update_fields=["status", "updated_at"])
+            ActivityLogService.log_activity(
+                workspace=invitation.workspace,
+                actor=requester,
+                action=ActivityAction.INVITATION_REVOKED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} revoked "
+                    f"{invitation.email}'s invitation."
+                ),
+                entity_type="workspace_invitation",
+                entity_id=invitation.id,
+                metadata={"email": invitation.email, "role": invitation.role},
+            )
             return invitation
     
     @staticmethod
@@ -612,13 +722,27 @@ class InvitationService:
         Returns:
             int: Number of invitations expired.
         """
-        now = timezone.now()
-
-        return WorkspaceInvitation.objects.filter(
-            status=InvitationStatus.PENDING,
-            expires_at__lte=now,
-            workspace__is_deleted=False,
-        ).update(
-            status=InvitationStatus.EXPIRED,
-            updated_at=now,
-    )
+        with transaction.atomic():
+            now = timezone.now()
+            invitations = list(
+                WorkspaceInvitation.objects.select_for_update().select_related(
+                    "workspace"
+                ).filter(
+                    status=InvitationStatus.PENDING,
+                    expires_at__lte=now,
+                    workspace__is_deleted=False,
+                )
+            )
+            for invitation in invitations:
+                invitation.status = InvitationStatus.EXPIRED
+                invitation.save(update_fields=["status", "updated_at"])
+                ActivityLogService.log_activity(
+                    workspace=invitation.workspace,
+                    actor=None,
+                    action=ActivityAction.INVITATION_EXPIRED,
+                    description=f"Invitation for {invitation.email} expired.",
+                    entity_type="workspace_invitation",
+                    entity_id=invitation.id,
+                    metadata={"email": invitation.email, "role": invitation.role},
+                )
+            return len(invitations)

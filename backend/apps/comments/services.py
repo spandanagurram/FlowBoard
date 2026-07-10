@@ -5,6 +5,8 @@ from rest_framework.exceptions import NotFound
 
 from apps.tasks.models import Task
 from apps.workspaces.models import Role, WorkspaceMember
+from apps.activities.models import ActivityAction
+from apps.activities.services import ActivityLogService
 
 from .models import Comment
 
@@ -115,12 +117,23 @@ class CommentService:
             )
             CommentService._ensure_can_create_comment(membership=membership)
 
-            return Comment.objects.create(
+            comment = Comment.objects.create(
                 task=task,
                 content=validated_data["content"],
                 created_by=requester,
                 updated_by=requester,
             )
+            ActivityLogService.log_activity(
+                workspace=task.project.workspace,
+                actor=requester,
+                action=ActivityAction.COMMENT_CREATED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} created a comment."
+                ),
+                entity_type="comment",
+                entity_id=comment.id,
+            )
+            return comment
 
     @staticmethod
     def list_comments(requester, task_id, search=None):
@@ -169,6 +182,16 @@ class CommentService:
             comment.save(
                 update_fields=["content", "edited_at", "updated_by", "updated_at"]
             )
+            ActivityLogService.log_activity(
+                workspace=comment.task.project.workspace,
+                actor=requester,
+                action=ActivityAction.COMMENT_UPDATED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} edited a comment."
+                ),
+                entity_type="comment",
+                entity_id=comment.id,
+            )
             return comment
 
     @staticmethod
@@ -200,4 +223,14 @@ class CommentService:
                     "updated_by",
                     "updated_at",
                 ]
+            )
+            ActivityLogService.log_activity(
+                workspace=comment.task.project.workspace,
+                actor=requester,
+                action=ActivityAction.COMMENT_DELETED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} deleted a comment."
+                ),
+                entity_type="comment",
+                entity_id=comment.id,
             )
