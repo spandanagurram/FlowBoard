@@ -3,7 +3,8 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from .serializers import GoogleLoginSerializer, LoginSerializer, RegisterSerializer, UserSerializer
+from .services import GoogleAuthService
 
 
 class RegisterAPIView(GenericAPIView):
@@ -25,6 +26,17 @@ class LoginAPIView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+
+class GoogleLoginAPIView(GenericAPIView):
+    permission_classes = (AllowAny,)
+    serializer_class = GoogleLoginSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        response_data = GoogleAuthService.login(**serializer.validated_data)
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class ProfileAPIView(GenericAPIView):
