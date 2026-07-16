@@ -49,9 +49,11 @@ INSTALLED_APPS = [
     'apps.comments.apps.CommentsConfig',
     'apps.activities.apps.ActivitiesConfig',
     'django_celery_beat',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -166,6 +168,18 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
-FRONTEND_URL = config("FRONTEND_URL")
+FRONTEND_URL = config(
+    "FRONTEND_URL",
+    default="http://localhost:5173",)
 BACKEND_URL = config("BACKEND_URL")
 GOOGLE_OAUTH_CLIENT_ID = config("GOOGLE_OAUTH_CLIENT_ID", default="")
+
+CORS_ALLOWED_ORIGINS = [
+    FRONTEND_URL,
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    FRONTEND_URL,
+]
+
+CORS_ALLOW_CREDENTIALS = True
