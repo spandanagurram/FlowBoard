@@ -10,6 +10,7 @@ import { registerUser } from "../../../api/auth";
 
 import GoogleButton from "../components/GoogleButton";
 import PasswordInput from "../components/PasswordInput";
+import { getErrorMessage } from "../../../utils/error";
 
 function Register() {
   const [values, setValues] = useState({
@@ -103,7 +104,7 @@ function Register() {
           onChange={handleChange}
         />
 
-        <Button type="submit">
+        <Button type="submit" className="w-full">
           Create Account
         </Button>
 
