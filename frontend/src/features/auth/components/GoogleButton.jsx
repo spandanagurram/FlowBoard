@@ -7,7 +7,7 @@ function GoogleButton({ onClick }) {
       variant="secondary"
       type="button"
       onClick={onClick}
-      className="gap-3"
+      className="gap-3 w-full"
     >
       <FcGoogle size={22} />
       <span>Continue with Google</span>

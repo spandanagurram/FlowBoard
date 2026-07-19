@@ -56,3 +56,12 @@ class LoginSerializer(serializers.Serializer):
 
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField(write_only=True, trim_whitespace=True)
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+    def save(self):
+        refresh_token = self.validated_data["refresh"]
+        token = RefreshToken(refresh_token)
+        token.blacklist()

@@ -8,6 +8,7 @@ import {
 import Card from "../components/ui/Card";
 import Logo from "../components/common/Logo";
 
+
 const features = [
   {
     icon: FolderKanban,
@@ -26,6 +27,7 @@ const features = [
     title: "Activity Timeline",
   },
 ];
+
 
 function AuthLayout({ children }) {
   return (

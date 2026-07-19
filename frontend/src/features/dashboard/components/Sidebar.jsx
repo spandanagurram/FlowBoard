@@ -3,10 +3,12 @@ import {
   Briefcase,
   FolderKanban,
   SquareCheckBig,
+  LogOut,
 } from "lucide-react";
 
 import Logo from "../../../components/common/Logo";
 import { NavLink } from "react-router-dom";
+import { logout } from "../../../api/auth";
 
 const menuItems = [
   {
@@ -30,6 +32,10 @@ const menuItems = [
     path: "/tasks",
   },
 ];
+
+const handleLogout = async () => {
+  await logout();
+};
 
 function Sidebar() {
   return (
@@ -61,6 +67,15 @@ function Sidebar() {
           );
         })}
       </nav>
+      <div className="mt-auto border-t border-slate-200 pt-4">
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-red-600"
+        >
+          <LogOut size={18} />
+          Logout
+        </button>
+      </div>
 
     </aside>
   );

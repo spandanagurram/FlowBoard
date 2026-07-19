@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'apps.comments.apps.CommentsConfig',
     'apps.activities.apps.ActivitiesConfig',
     'django_celery_beat',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
 ]
 
@@ -145,7 +146,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=200),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 

@@ -7,5 +7,101 @@ const api = axios.create({
   },
 });
 
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((promise) => {
+    if (error) {
+      promise.reject(error);
+    } else {
+      promise.resolve(token);
+    }
+  });
+
+  failedQueue = [];
+};
+
+api.interceptors.response.use(
+  (response) => response,
+
+  async (error) => {
+      console.log("❌ Response Interceptor Triggered");
+      console.log("Status:", error.response?.status);
+      console.log("URL:", error.config?.url);
+    const originalRequest = error.config;
+
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
+
+    const isAuthEndpoint =
+      originalRequest.url?.includes("/auth/login/") ||
+      originalRequest.url?.includes("/auth/register/") ||
+      originalRequest.url?.includes("/auth/google/") ||
+      originalRequest.url?.includes("/auth/token/refresh/");
+
+    if (
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      isAuthEndpoint
+    ) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      }).then((newAccessToken) => {
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest);
+      });
+    }
+
+    isRefreshing = true;
+
+    try {
+      const refresh = localStorage.getItem("refresh");
+
+      console.log("🔄 Access token expired. Refreshing...");
+      console.log("Refresh token:", localStorage.getItem("refresh"));
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/auth/token/refresh/`,
+        {
+          refresh,
+        }
+      );
+
+      const newAccessToken = response.data.access;
+      console.log("✅ Refresh successful");
+      console.log("New Access Token:", newAccessToken);
+
+      localStorage.setItem("access", newAccessToken);
+
+      processQueue(null, newAccessToken);
+
+      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      console.log("❌ Refresh failed");
+      console.log(refreshError.response?.data);
+      processQueue(refreshError, null);
+
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      localStorage.removeItem("user");
+
+      window.location.href = "/login";
+
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
+  }
+);
 
 export default api;

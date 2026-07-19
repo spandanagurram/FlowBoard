@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from .serializers import GoogleLoginSerializer, LoginSerializer, RegisterSerializer, UserSerializer
 from .services import GoogleAuthService
+from .serializers import LogoutSerializer
 
 
 class RegisterAPIView(GenericAPIView):
@@ -46,3 +47,16 @@ class ProfileAPIView(GenericAPIView):
     def get(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class LogoutAPIView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"message": "Logged out successfully."},
+            status=status.HTTP_200_OK,
+        )

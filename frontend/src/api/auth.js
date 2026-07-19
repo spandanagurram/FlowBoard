@@ -28,3 +28,16 @@ export const getProfile = async (accessToken) => {
   return response.data;
 };
 
+export const logout = async () => {
+  try {
+    await api.post("/auth/logout/", {
+      refresh: localStorage.getItem("refresh"),
+    });
+  } finally {
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("user");
+
+    window.location.href = "/login";
+  }
+}

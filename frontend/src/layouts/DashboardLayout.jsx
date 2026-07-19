@@ -1,5 +1,7 @@
 import Sidebar from "../features/dashboard/components/Sidebar";
 import TopNavbar from "../features/dashboard/components/TopNavbar";
+import { LogOut } from "lucide-react";
+
 
 function DashboardLayout({ children }) {
   return (
@@ -10,6 +12,7 @@ function DashboardLayout({ children }) {
       <div className="flex flex-1 flex-col">
 
         <TopNavbar />
+
 
         <main className="flex-1 overflow-y-auto p-6">
           {children}
