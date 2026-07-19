@@ -26,7 +26,7 @@ def send_workspace_invitation_email(invitation_id: str) -> None:
 
     subject = f"Invitation to join {invitation.workspace.name}"
     invitation_url = (
-    f"{settings.BACKEND_URL}/api/invitations/{invitation.token}/accept/"
+    f"{settings.FRONTEND_URL}/invitations/{invitation.token}"
     )
 
     send_templated_email(

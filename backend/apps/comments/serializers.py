@@ -60,6 +60,10 @@ class CommentUpdateSerializer(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(
+    source="created_by.username",
+    read_only=True,
+)
     class Meta:
         model = Comment
         fields = (
@@ -67,6 +71,7 @@ class CommentSerializer(serializers.ModelSerializer):
             "task",
             "content",
             "created_by",
+            "created_by_name",
             "updated_by",
             "edited_at",
             "created_at",

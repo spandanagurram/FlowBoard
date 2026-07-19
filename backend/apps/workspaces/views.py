@@ -1,13 +1,15 @@
 from rest_framework import serializers, status
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .serializers import (
+    InvitationDetailSerializer,
     WorkspaceCreateSerializer,
     WorkspaceInvitationCreateSerializer,
     WorkspaceInvitationSerializer,
+    WorkspaceMemberDetailSerializer,
     WorkspaceMemberRoleUpdateSerializer,
     WorkspaceMemberSerializer,
     WorkspaceSerializer,
@@ -120,8 +122,40 @@ class WorkspaceMemberRoleUpdateAPIView(GenericAPIView):
             user_id=user_id,
             validated_data=serializer.validated_data,
         )
-        response_serializer = WorkspaceMemberSerializer(membership)
+        response_serializer = WorkspaceMemberDetailSerializer(membership)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+class WorkspaceMemberRemoveAPIView(GenericAPIView):
+    permission_classes = (IsAuthenticated,)
+
+    def delete(self, request, workspace_id, member_id):
+        WorkspaceService.remove_member(
+            requester=request.user,
+            workspace_id=workspace_id,
+            member_id=member_id,
+        )
+        return Response(
+            {"message": "Member removed successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class WorkspaceMemberListAPIView(GenericAPIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = WorkspaceMemberSerializer
+
+    def get(self, request, workspace_id):
+        requester_membership, members = WorkspaceService.list_members(
+            request.user,
+            workspace_id,
+        )
+
+        serializer = WorkspaceMemberSerializer(members, many=True,)
+        return Response({
+        "current_user_role": requester_membership.role,
+        "members": serializer.data,
+        }, status=status.HTTP_200_OK)
 
 
 class WorkspaceInvitationCreateAPIView(GenericAPIView):
@@ -140,6 +174,14 @@ class WorkspaceInvitationCreateAPIView(GenericAPIView):
         response_serializer = WorkspaceInvitationSerializer(invitation)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
+class InvitationDetailAPIView(GenericAPIView):
+    permission_classes = (AllowAny,)
+    serializer_class = InvitationDetailSerializer
+
+    def get(self, request, token):
+        invitation = InvitationService.get_invitation(token=token)
+        response_serializer = InvitationDetailSerializer(invitation)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 class InvitationAcceptAPIView(GenericAPIView):
     permission_classes = (IsAuthenticated,)

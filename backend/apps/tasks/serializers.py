@@ -85,11 +85,20 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
+    workspace = serializers.UUIDField(
+        source="project.workspace.id",
+        read_only=True,
+    )
+    assignee_name = serializers.CharField(
+        source="assignee.username",
+        read_only=True,
+    )
     class Meta:
         model = Task
         fields = (
             "id",
             "project",
+            "workspace",
             "parent_task",
             "task_number",
             "title",
@@ -97,6 +106,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "assignee",
+            "assignee_name",
             "due_date",
             "completed_at",
             "created_by",

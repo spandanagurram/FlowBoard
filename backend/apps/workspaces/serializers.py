@@ -107,7 +107,7 @@ class WorkspaceMemberRoleUpdateSerializer(serializers.Serializer):
         return attrs
 
 
-class WorkspaceMemberSerializer(serializers.ModelSerializer):
+class WorkspaceMemberDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkspaceMember
         fields = (
@@ -121,6 +121,17 @@ class WorkspaceMemberSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+        read_only_fields = fields
+
+
+class WorkspaceMemberSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+
+    class Meta:
+        model = WorkspaceMember
+        fields = ("id", "user_id","username", "email", "role")
         read_only_fields = fields
 
 
@@ -145,3 +156,17 @@ class WorkspaceInvitationSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = fields
+        
+        
+class InvitationDetailSerializer(serializers.ModelSerializer):
+    workspace_name = serializers.CharField(source="workspace.name", read_only=True)
+
+    class Meta:
+        model = WorkspaceInvitation
+        fields = (
+            "workspace_name",
+            "email",
+            "role",
+            "status",
+            "expires_at",
+        )

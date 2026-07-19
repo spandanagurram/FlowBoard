@@ -17,6 +17,7 @@ class ActivityAction(models.TextChoices):
     INVITATION_REVOKED = "INVITATION_REVOKED", "Invitation revoked"
     INVITATION_EXPIRED = "INVITATION_EXPIRED", "Invitation expired"
     MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED", "Member role changed"
+    MEMBER_REMOVED = "MEMBER_REMOVED", "Member removed"
     PROJECT_CREATED = "PROJECT_CREATED", "Project created"
     PROJECT_UPDATED = "PROJECT_UPDATED", "Project updated"
     PROJECT_DELETED = "PROJECT_DELETED", "Project deleted"

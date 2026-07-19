@@ -139,6 +139,28 @@ class WorkspaceService:
         return workspaces.order_by(*ordering_fields)
 
     @staticmethod
+    def list_members(requester, workspace_id):
+        workspace = WorkspaceService._get_active_workspace(workspace_id=workspace_id)
+        WorkspaceService._ensure_active_member(
+            workspace=workspace,
+            requester=requester,
+        )
+        requester_membership = WorkspaceService._ensure_active_member(
+            workspace=workspace,
+            requester=requester,
+        )
+
+        members = (
+            WorkspaceMember.objects.select_related("user")
+            .filter(
+                workspace=workspace,
+                is_active=True,
+            ).order_by("user__username")
+        )
+
+        return requester_membership, members
+
+    @staticmethod
     def get_workspace_detail(requester, workspace_id):
         workspace = WorkspaceService._get_active_workspace(workspace_id=workspace_id)
         WorkspaceService._ensure_active_member(
@@ -358,6 +380,78 @@ class WorkspaceService:
             return target_membership
 
     @staticmethod
+    def remove_member(requester, workspace_id, member_id):
+        with transaction.atomic():
+            workspace = WorkspaceService._get_active_workspace(
+                workspace_id=workspace_id,
+                lock=True,
+            )
+            requester_membership = WorkspaceService._ensure_active_member(
+                workspace=workspace,
+                requester=requester,
+                lock=True,
+            )
+
+            target_membership = WorkspaceMember.objects.select_for_update().filter(
+                id=member_id,
+                workspace=workspace,
+            ).select_related("user", "workspace").first()
+            if target_membership is None:
+                raise serializers.ValidationError(
+                    {"member_id": "Target member is not a member of this workspace."}
+                )
+
+            if not target_membership.is_active:
+                raise serializers.ValidationError(
+                    {"member_id": "Target member must be an active member of this workspace."}
+                )
+
+            if target_membership.user_id == requester.id:
+                raise serializers.ValidationError(
+                    {"member_id": "You cannot remove yourself from the workspace."}
+                )
+
+            WorkspaceService._ensure_can_remove_member(
+                requester_membership=requester_membership,
+                target_membership=target_membership,
+            )
+
+            target_membership.is_active = False
+            target_membership.save(update_fields=["is_active"])
+            ActivityLogService.log_activity(
+                workspace=workspace,
+                actor=requester,
+                action=ActivityAction.MEMBER_REMOVED,
+                description=(
+                    f"{ActivityLogService.get_actor_name(requester)} removed "
+                    f"{ActivityLogService.get_actor_name(target_membership.user)} "
+                    "from the workspace."
+                ),
+                entity_type="workspace_member",
+                entity_id=target_membership.id,
+            )
+
+    @staticmethod
+    def _ensure_can_remove_member(requester_membership, target_membership):
+        if target_membership.role == Role.OWNER:
+            raise serializers.ValidationError(
+                "Workspace owner cannot be removed."
+            )
+
+        if requester_membership.role == Role.OWNER:
+            return
+
+        if (
+            requester_membership.role == Role.ADMIN
+            and target_membership.role in {Role.MEMBER, Role.VIEWER}
+        ):
+            return
+
+        raise serializers.ValidationError(
+            "You do not have permission to remove this member."
+        )
+
+    @staticmethod
     def _ensure_can_change_member_role(
         requester_membership,
         target_membership,
@@ -526,6 +620,47 @@ class InvitationService:
                 metadata={"email": invitation.email, "role": invitation.role},
             )
             send_workspace_invitation_email.delay(str(invitation.id))
+            return invitation
+        
+    @staticmethod
+    def get_invitation(token):
+        with transaction.atomic():
+            # Find the invitation by its secure token.
+            invitation = (
+                WorkspaceInvitation.objects.select_related("workspace")
+                .filter(
+                    token=token,
+                    workspace__is_deleted=False,
+                )
+                .first()
+            )
+
+            if invitation is None:
+                raise serializers.ValidationError("Invitation not found.")
+
+            # Automatically expire stale pending invitations.
+            now = timezone.now()
+
+            if (
+                invitation.status == InvitationStatus.PENDING
+                and invitation.expires_at <= now
+            ):
+                invitation.status = InvitationStatus.EXPIRED
+                invitation.save(update_fields=["status", "updated_at"])
+
+                ActivityLogService.log_activity(
+                    workspace=invitation.workspace,
+                    actor=None,
+                    action=ActivityAction.INVITATION_EXPIRED,
+                    description=f"Invitation for {invitation.email} expired.",
+                    entity_type="workspace_invitation",
+                    entity_id=invitation.id,
+                    metadata={
+                        "email": invitation.email,
+                        "role": invitation.role,
+                    },
+                )
+
             return invitation
 
     @staticmethod

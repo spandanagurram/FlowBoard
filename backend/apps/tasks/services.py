@@ -230,6 +230,14 @@ class TaskService:
                 project=project,
                 assignee_id=validated_data.get("assignee"),
             )
+            
+            due_date = validated_data.get("due_date")
+
+            if due_date and due_date < timezone.localdate():
+                raise serializers.ValidationError(
+                    {"due_date": "Due date cannot be in the past."}
+                )
+                
             task_number = TaskService._generate_task_number(
                 project=project,
                 parent_task=parent_task,
@@ -244,7 +252,7 @@ class TaskService:
                     status=validated_data.get("status", TaskStatus.TODO),
                     priority=validated_data.get("priority", Priority.MEDIUM),
                     assignee=assignee,
-                    due_date=validated_data.get("due_date"),
+                    due_date=due_date,
                     created_by=requester,
                     updated_by=requester,
                 )
