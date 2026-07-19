@@ -49,11 +49,7 @@ function Register() {
       navigate("/login");
     } catch (error) {
       console.error(error);
-
-      alert(
-        error.response?.data?.email?.[0] ||
-        "Registration failed."
-      );
+      alert(getErrorMessage(error));
     }
   };
   return (

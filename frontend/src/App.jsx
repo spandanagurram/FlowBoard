@@ -9,6 +9,9 @@ import Workspaces from "./features/workspace/pages/Workspaces";
 import WorkspaceDetails from "./features/workspace/pages/WorkspaceDetails";
 import ProjectDetails from "./features/project/pages/ProjectDetails";
 import TaskDetails from "./features/task/pages/TaskDetails";
+import WorkspaceActivity from "./features/activity/pages/WorkspaceActivity";
+import WorkspaceMembers from "./features/member/pages/WorkspaceMembers";
+import InvitationPage from "./features/invitation/pages/InvitationPage";
 
 function App() {
   return (
@@ -56,6 +59,21 @@ function App() {
             <TaskDetails />
           </ProtectedRoute>
         }
+      />
+
+      <Route
+          path="/workspaces/:workspaceId/activities"
+          element={<WorkspaceActivity />}
+      />
+
+      <Route
+        path="/workspaces/:workspaceId/members"
+        element={<WorkspaceMembers />}
+      />
+      
+      <Route
+        path="/invitations/:token"
+        element={<InvitationPage />}
       />
     </Routes>
   );

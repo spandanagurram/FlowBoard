@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import AuthLayout from "../../../layouts/AuthLayout";
 import Logo from "../../../components/common/Logo";
@@ -10,6 +10,7 @@ import GoogleButton from "../components/GoogleButton";
 import PasswordInput from "../components/PasswordInput";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "../../../api/auth";
+import { googleLogin } from "../../../api/auth";
 
 function Login() {
   const [values, setValues] = useState({
@@ -18,6 +19,8 @@ function Login() {
   });
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.redirectTo || "/dashboard";
 
   const handleChange = (event) => {
     setValues((current) => ({
@@ -41,7 +44,7 @@ function Login() {
 
       alert("Login successful.");
 
-      navigate("/dashboard");
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       console.error(error);
 
@@ -50,6 +53,51 @@ function Login() {
         "Invalid email or password."
       );
     }
+  };
+
+  const handleGoogleLogin = () => {
+    window.google.accounts.id.initialize({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+
+      callback: async (response) => {
+        try {
+          const data = await googleLogin(
+            response.credential
+          );
+
+          localStorage.setItem(
+            "access",
+            data.access
+          );
+
+          localStorage.setItem(
+            "refresh",
+            data.refresh
+          );
+
+          localStorage.setItem(
+            "user",
+            JSON.stringify(data.user)
+          );
+
+          alert("Login successful.");
+
+          navigate(redirectTo, {
+            replace: true,
+          });
+
+        } catch (error) {
+          console.error(error);
+
+          alert(
+            error.response?.data?.detail ||
+            "Google login failed."
+          );
+        }
+      },
+    });
+
+    window.google.accounts.id.prompt();
   };
 
   return (
@@ -105,7 +153,7 @@ function Login() {
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
-        <GoogleButton />
+        <GoogleButton onClick={handleGoogleLogin}/>
 
         <p className="text-center text-sm text-slate-500">
           Don't have an account?{" "}

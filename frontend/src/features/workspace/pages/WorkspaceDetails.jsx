@@ -166,6 +166,38 @@ function WorkspaceDetails() {
             </h2>
 
             <Button
+              className="w-auto"
+              onClick={() =>
+                navigate(
+                  `/workspaces/${workspace.id}/members`,
+                  {
+                    state: {
+                      workspaceName: workspace.name,
+                    },
+                  }
+                )
+              }
+            >
+              Members
+            </Button>
+
+            <Button
+                className="w-auto"
+                onClick={() =>
+                    navigate(
+                        `/workspaces/${workspace.id}/activities`,
+                        {
+                            state: {
+                                workspaceName: workspace.name,
+                            },
+                        }
+                    )
+                }
+            >
+                Activity Logs
+            </Button>
+
+            <Button
               className="flex w-auto items-center gap-2"
               onClick={() => setIsProjectModalOpen(true)}
             >

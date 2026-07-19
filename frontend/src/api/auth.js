@@ -27,3 +27,4 @@ export const getProfile = async (accessToken) => {
 
   return response.data;
 };
+

@@ -98,7 +98,14 @@ function ProjectDetails() {
   const handleCreateTask = async (values) => {
     try {
       const { status, ...taskData } = values;
-      await createTask(project.id, values);
+      console.log(values);
+      const payload = {
+        ...values,
+        assignee: values.assignee || null,
+        due_date: values.due_date || null,
+      };
+
+      await createTask(project.id, payload);
 
       setIsTaskModalOpen(false);
 
@@ -107,6 +114,7 @@ function ProjectDetails() {
       alert("Task created successfully.");
     } catch (error) {
       console.error(error);
+      console.error(error.response?.data);
       alert(getErrorMessage(error));
     }
   };
@@ -177,6 +185,7 @@ function ProjectDetails() {
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
         onSubmit={handleCreateTask}
+        workspaceId={project.workspace}
       />
       <div className="mt-8">
         <div className="mb-4 flex items-center justify-between">

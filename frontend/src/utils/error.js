@@ -1,6 +1,5 @@
 export function getErrorMessage(error) {
   const data = error.response?.data;
-  console.log(localStorage.getItem("access"))
   if (!data) {
     return "Something went wrong. Please try again.";
   }

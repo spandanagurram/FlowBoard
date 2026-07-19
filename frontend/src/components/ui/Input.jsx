@@ -9,6 +9,7 @@ function Input({
   name,
   rightIcon,
   onRightIconClick,
+  ...props
 }) {
   const inputId = name || label.toLowerCase().replace(/\s+/g, "-");
 
@@ -30,6 +31,7 @@ function Input({
           value={value}
           onChange={onChange}
           required={required}
+          {...props}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${inputId}-error` : undefined}
           className={`w-full rounded-xl border bg-white px-4 py-3 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-2 ${

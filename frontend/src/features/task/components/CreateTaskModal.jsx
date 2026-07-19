@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 
 import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
+import { getWorkspaceMembers } from "../../../api/member";
+import { getErrorMessage } from "../../../utils/error";
+import Select from "react-select";
 
 const defaultValues = {
   title: "",
@@ -20,9 +23,11 @@ function CreateTaskModal({
   title = "Create Task",
   submitText = "Create",
   isEdit = false,
+  workspaceId,
+  members: membersProp,
 }) {
   const [values, setValues] = useState(initialValues);
-
+  const [members, setMembers] = useState(membersProp || []);
   useEffect(() => {
     setValues(initialValues);
   }, [
@@ -33,6 +38,12 @@ function CreateTaskModal({
     initialValues.assignee,
     initialValues.due_date,
   ]);
+
+  useEffect(() => {
+      if (isOpen && !membersProp) {
+          fetchMembers();
+      }
+  }, [isOpen, workspaceId, membersProp]);
 
   const handleChange = (event) => {
     setValues((current) => ({
@@ -46,11 +57,27 @@ function CreateTaskModal({
     onSubmit(values);
   };
 
+  const fetchMembers = async () => {
+      if (!workspaceId) return;
+
+      try {
+          const data = await getWorkspaceMembers(workspaceId);
+          setMembers(data);
+      } catch (error) {
+          alert(getErrorMessage(error));
+      }
+  };
+
+  const memberOptions = members.map((member) => ({
+    value: member.id,
+    label: `${member.username} (${member.role})`,
+  }));
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-xl bg-white p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6">
 
         <h2 className="mb-6 text-2xl font-bold">
           {title}
@@ -110,12 +137,36 @@ function CreateTaskModal({
             </select>
           </div>
 
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Assignee
+            </label>
+
+            <Select
+              options={memberOptions}
+              isClearable
+              placeholder="Select assignee"
+              value={
+                memberOptions.find(
+                  (option) => option.value === values.assignee
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                setValues((current) => ({
+                  ...current,
+                  assignee: selectedOption ? selectedOption.value : "",
+                }))
+              }
+            />
+          </div>
+
           <Input
             type="date"
             label="Due Date"
             name="due_date"
             value={values.due_date}
             onChange={handleChange}
+            min={new Date().toISOString().split("T")[0]}
           />
 
           <div className="flex justify-end gap-3">

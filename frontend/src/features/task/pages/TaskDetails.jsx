@@ -7,6 +7,8 @@ import CreateTaskModal from "../components/CreateTaskModal";
 
 import { getTask, updateTask, deleteTask } from "../../../api/task";
 import { getErrorMessage } from "../../../utils/error";
+import { getWorkspaceMembers } from "../../../api/member";
+import CommentSection from "../../comment/components/CommentSection";
 
 function TaskDetails() {
   const { taskId } = useParams();
@@ -15,6 +17,7 @@ function TaskDetails() {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [members, setMembers] = useState([]);
 
   useEffect(() => {
     fetchTask();
@@ -25,7 +28,7 @@ function TaskDetails() {
       setLoading(true);
 
       const data = await getTask(taskId);
-
+      await fetchMembers(data.workspace);
       setTask(data);
     } catch (error) {
       console.error(error);
@@ -34,6 +37,23 @@ function TaskDetails() {
       setLoading(false);
     }
   };
+
+  const fetchMembers = async (workspaceId) => {
+      try {
+          const data = await getWorkspaceMembers(workspaceId);
+          setMembers(data.members);
+      } catch (error) {
+          console.error(error);
+      }
+  };
+
+  console.log("members =", members);
+  console.log("Array?", Array.isArray(members));
+
+  const memberOptions = members.map((member) => ({
+      value: member.id,
+      label: `${member.username} (${member.role})`,
+  }));
 
   const taskInitialValues = useMemo(
     () => ({
@@ -53,6 +73,7 @@ function TaskDetails() {
       const payload = {
         ...values,
         assignee: values.assignee || null,
+        due_date: values.due_date || null,
       };
 
       const updated = await updateTask(taskId, payload);
@@ -95,6 +116,10 @@ function TaskDetails() {
             {task.title}
           </h1>
 
+          <p className="text-sm font-medium text-slate-500">
+            {task.task_number}
+          </p>
+
           <p className="text-slate-500">
             {task.description || "No description"}
           </p>
@@ -108,6 +133,10 @@ function TaskDetails() {
               {task.priority}
             </span>
           </div>
+
+          <p className="text-sm text-slate-400">
+            Assignee: {task.assignee_name || "Unassigned"}
+          </p>
 
           <p className="text-sm text-slate-400">
             Due: {task.due_date || "Not set"}
@@ -136,7 +165,7 @@ function TaskDetails() {
           </Button>
         </div>
       </div>
-
+      <CommentSection taskId={task.id} />
       <CreateTaskModal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
@@ -145,6 +174,7 @@ function TaskDetails() {
         title="Edit Task"
         submitText="Save Changes"
         isEdit={true}
+        members={members}
       />
     </DashboardLayout>
   );
