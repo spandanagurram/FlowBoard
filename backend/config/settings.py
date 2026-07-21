@@ -142,7 +142,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 5,
+    "PAGE_SIZE": 10,
 }
 
 SIMPLE_JWT = {
@@ -175,6 +175,18 @@ FRONTEND_URL = config(
 BACKEND_URL = config("BACKEND_URL")
 GOOGLE_OAUTH_CLIENT_ID = config("GOOGLE_OAUTH_CLIENT_ID", default="")
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": (
+            f"redis://{config('REDIS_HOST')}:{config('REDIS_PORT')}/{config('REDIS_DB')}"
+        ),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
 CORS_ALLOWED_ORIGINS = [
     FRONTEND_URL,
 ]
@@ -184,3 +196,5 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+DASHBOARD_CACHE_TIMEOUT = 300

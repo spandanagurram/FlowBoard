@@ -6,6 +6,7 @@ from rest_framework import serializers
 from apps.workspaces.models import Role, Workspace, WorkspaceMember
 from apps.activities.models import ActivityAction
 from apps.activities.services import ActivityLogService
+from apps.common.cache import delete_dashboard_cache
 
 from .models import Project
 
@@ -81,6 +82,8 @@ class ProjectService:
                     entity_type="project",
                     entity_id=project.id,
                 )
+                
+                delete_dashboard_cache(requester.id)
                 return project
             except IntegrityError as exc:
                 raise serializers.ValidationError(
@@ -241,6 +244,7 @@ class ProjectService:
                 entity_type="project",
                 entity_id=project.id,
             )
+            delete_dashboard_cache(requester.id)
 
     @staticmethod
     def _get_ordering_fields(ordering):

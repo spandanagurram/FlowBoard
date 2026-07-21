@@ -133,12 +133,12 @@ function Login() {
         />
 
         <div className="text-right">
-          <button
+          <Link
+            to="/forgot-password"
             className="text-sm text-blue-600 hover:underline"
-            type="button"
           >
             Forgot Password?
-          </button>
+          </Link>
         </div>
 
         <Button type="submit" className="w-full">

@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
+
 User = get_user_model()
 
 
@@ -65,3 +66,36 @@ class LogoutSerializer(serializers.Serializer):
         refresh_token = self.validated_data["refresh"]
         token = RefreshToken(refresh_token)
         token.blacklist()
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def save(self):
+        from .services import PasswordResetService
+
+        PasswordResetService.send_reset_email(self.validated_data["email"])
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        from .services import PasswordResetService
+
+        attrs["user"] = PasswordResetService.validate_reset_request(
+            uid=attrs["uid"],
+            token=attrs["token"],
+            password=attrs["password"],
+        )
+        return attrs
+
+    def save(self):
+        from .services import PasswordResetService
+
+        PasswordResetService.reset_password(
+            user=self.validated_data["user"],
+            password=self.validated_data["password"],
+        )

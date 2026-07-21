@@ -1,6 +1,11 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
+from django.utils.encoding import force_str
+from django.utils.http import base36_to_int, urlsafe_base64_decode, urlsafe_base64_encode
 from google.auth import exceptions as google_auth_exceptions
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -11,6 +16,65 @@ from .serializers import UserSerializer
 
 
 User = get_user_model()
+
+
+class PasswordResetService:
+    token_generator = PasswordResetTokenGenerator()
+
+    @staticmethod
+    def send_reset_email(email):
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if user is None:
+            return
+
+        uid = urlsafe_base64_encode(force_str(user.pk).encode())
+        token = PasswordResetService.token_generator.make_token(user)
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
+
+        from .tasks import send_password_reset_email
+
+        send_password_reset_email.delay(user.email, reset_url)
+
+    @staticmethod
+    def validate_reset_request(*, uid, token, password):
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError({"uid": "Invalid user identifier."})
+
+        if PasswordResetService._is_token_expired(token):
+            raise serializers.ValidationError({"token": "Password reset token has expired."})
+
+        if not PasswordResetService.token_generator.check_token(user, token):
+            raise serializers.ValidationError({"token": "Invalid password reset token."})
+
+        try:
+            validate_password(password, user)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"password": list(error.messages)})
+
+        return user
+
+    @staticmethod
+    def reset_password(*, user, password):
+        user.set_password(password)
+        user.save()
+
+    @staticmethod
+    def _is_token_expired(token):
+        try:
+            timestamp = base36_to_int(token.split("-", 1)[0])
+        except (ValueError, IndexError):
+            return False
+
+        return (
+            PasswordResetService.token_generator._num_seconds(
+                PasswordResetService.token_generator._now()
+            )
+            - timestamp
+            > settings.PASSWORD_RESET_TIMEOUT
+        )
 
 
 class GoogleAuthService:

@@ -25,6 +25,7 @@ from apps.workspaces.urls import invitation_urlpatterns
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.accounts.urls')),
+    path('api/dashboard/', include('apps.dashboard.urls')),
     path('api/workspaces/', include('apps.workspaces.urls')),
     path('api/invitations/', include(invitation_urlpatterns)),
     path('api/projects/', include(project_urlpatterns)),

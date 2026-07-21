@@ -6,6 +6,7 @@ from rest_framework.exceptions import NotFound
 from apps.workspaces.tasks import send_workspace_invitation_email
 from apps.activities.models import ActivityAction
 from apps.activities.services import ActivityLogService
+from apps.common.cache import delete_dashboard_cache
 
 from .models import (
     InvitationRole,
@@ -94,6 +95,7 @@ class WorkspaceService:
                     logo=validated_data.get("logo"),
                     updated_by=owner,
                 )
+                
                 WorkspaceMember.objects.create(
                     workspace=workspace,
                     user=owner,
@@ -112,6 +114,7 @@ class WorkspaceService:
                     entity_type="workspace",
                     entity_id=workspace.id,
                 )
+                delete_dashboard_cache(owner.id)
                 return workspace
         except IntegrityError as exc:
             name = validated_data.get("name", "")
@@ -249,6 +252,7 @@ class WorkspaceService:
                 entity_type="workspace",
                 entity_id=workspace.id,
             )
+            delete_dashboard_cache(requester.id)
 
     @staticmethod
     def transfer_ownership(requester, workspace_id, validated_data):

@@ -1,22 +1,37 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../../../layouts/DashboardLayout";
+import { getDashboardSummary } from "../../../api/dashboard";
 import { getWorkspaces } from "../../../api/workspace";
 
 function Dashboard() {
-  const [workspaceCount, setWorkspaceCount] = useState(0);
+  const [summary, setSummary] = useState({
+    workspace_count: 0,
+    project_count: 0,
+    task_count: 0,
+  });
   const [workspaces, setWorkspaces] = useState([]);
+
   useEffect(() => {
+    async function fetchDashboardSummary() {
+      try {
+        const response = await getDashboardSummary();
+        setSummary(response);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
     async function fetchWorkspaces() {
       try {
         const response = await getWorkspaces();
 
-        setWorkspaceCount(response.count);
         setWorkspaces(response.results);
       } catch (error) {
         console.error(error);
       }
     }
 
+    fetchDashboardSummary();
     fetchWorkspaces();
   }, []);
   return (
@@ -31,7 +46,7 @@ function Dashboard() {
             </p>
 
             <h3 className="mt-2 text-3xl font-bold">
-              {workspaceCount}
+              {summary.workspace_count}
             </h3>
           </div>
 
@@ -41,7 +56,7 @@ function Dashboard() {
             </p>
 
             <h3 className="mt-2 text-3xl font-bold">
-              --
+              {summary.project_count}
             </h3>
           </div>
 
@@ -51,7 +66,7 @@ function Dashboard() {
             </p>
 
             <h3 className="mt-2 text-3xl font-bold">
-              --
+              {summary.task_count}
             </h3>
           </div>
 

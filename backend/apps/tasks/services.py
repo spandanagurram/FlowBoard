@@ -8,6 +8,8 @@ from apps.projects.models import Project
 from apps.workspaces.models import Role, WorkspaceMember
 from apps.activities.models import ActivityAction
 from apps.activities.services import ActivityLogService
+from apps.common.cache import delete_dashboard_cache
+
 
 from .models import Priority, Task, TaskStatus
 
@@ -267,6 +269,7 @@ class TaskService:
                     entity_type="task",
                     entity_id=task.id,
                 )
+                delete_dashboard_cache(requester.id)
                 return task
             except IntegrityError as exc:
                 raise serializers.ValidationError(
@@ -487,6 +490,7 @@ class TaskService:
                 entity_type="task",
                 entity_id=task.id,
             )
+            delete_dashboard_cache(requester.id)
 
         return task
 
