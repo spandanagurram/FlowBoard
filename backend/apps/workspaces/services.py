@@ -519,6 +519,31 @@ class InvitationService:
     InvitationStatus.REVOKED: "This invitation has been revoked.",
     InvitationStatus.EXPIRED: "This invitation has expired.",
     }
+    
+    @staticmethod
+    def _expire_invitation_if_needed(invitation):
+        """
+        Expire the invitation if it is still pending and has passed its expiry time.
+        """
+        if (
+            invitation.status == InvitationStatus.PENDING
+            and invitation.expires_at <= timezone.now()
+        ):
+            invitation.status = InvitationStatus.EXPIRED
+            invitation.save(update_fields=["status", "updated_at"])
+
+            ActivityLogService.log_activity(
+                workspace=invitation.workspace,
+                actor=None,
+                action=ActivityAction.INVITATION_EXPIRED,
+                description=f"Invitation for {invitation.email} expired.",
+                entity_type="workspace_invitation",
+                entity_id=invitation.id,
+                metadata={
+                    "email": invitation.email,
+                    "role": invitation.role,
+                },
+            )
 
     @staticmethod
     def create_invitation(requester, workspace_id, validated_data):
@@ -642,45 +667,30 @@ class InvitationService:
             if invitation is None:
                 raise serializers.ValidationError("Invitation not found.")
 
-            # Automatically expire stale pending invitations.
-            now = timezone.now()
-
-            if (
-                invitation.status == InvitationStatus.PENDING
-                and invitation.expires_at <= now
-            ):
-                invitation.status = InvitationStatus.EXPIRED
-                invitation.save(update_fields=["status", "updated_at"])
-
-                ActivityLogService.log_activity(
-                    workspace=invitation.workspace,
-                    actor=None,
-                    action=ActivityAction.INVITATION_EXPIRED,
-                    description=f"Invitation for {invitation.email} expired.",
-                    entity_type="workspace_invitation",
-                    entity_id=invitation.id,
-                    metadata={
-                        "email": invitation.email,
-                        "role": invitation.role,
-                    },
-                )
+            InvitationService._expire_invitation_if_needed(invitation)
 
             return invitation
 
     @staticmethod
     def accept_invitation(token, user):
-        with transaction.atomic():
-            # Find the invitation by its secure token.
-            invitation = WorkspaceInvitation.objects.select_related(
+        # Find the invitation by its secure token.
+        invitation = (
+            WorkspaceInvitation.objects.select_related(
                 "workspace",
                 "invited_by",
-            ).filter(
+            )
+            .filter(
                 token=token,
                 workspace__is_deleted=False,
-            ).first()
-            if invitation is None:
-                raise serializers.ValidationError("Invitation not found.")
+            )
+            .first()
+        )
+        if invitation is None:
+            raise serializers.ValidationError("Invitation not found.")
 
+        InvitationService._expire_invitation_if_needed(invitation)
+
+        with transaction.atomic():
             # Only pending invitations can be accepted.
             if invitation.status != InvitationStatus.PENDING:
                 raise serializers.ValidationError(
@@ -690,10 +700,7 @@ class InvitationService:
                     )
                 )
 
-            # Expire stale invitations before rejecting the accept attempt.
             now = timezone.now()
-            if invitation.expires_at <= now:
-                raise serializers.ValidationError("Invitation has expired.")
 
             # Ensure the authenticated user owns the invited email address.
             if user.email != invitation.email:
@@ -747,17 +754,23 @@ class InvitationService:
 
     @staticmethod
     def reject_invitation(token, user):
-        with transaction.atomic():
-            # Find the invitation by its secure token.
-            invitation = WorkspaceInvitation.objects.select_related(
+        # Find the invitation by its secure token.
+        invitation = (
+            WorkspaceInvitation.objects.select_related(
                 "workspace",
-            ).filter(
+            )
+            .filter(
                 token=token,
                 workspace__is_deleted=False,
-            ).first()
-            if invitation is None:
-                raise serializers.ValidationError("Invitation not found.")
+            )
+            .first()
+        )
+        if invitation is None:
+            raise serializers.ValidationError("Invitation not found.")
 
+        InvitationService._expire_invitation_if_needed(invitation)
+
+        with transaction.atomic():
             # Only pending invitations can be rejected.
             if invitation.status != InvitationStatus.PENDING:
                 raise serializers.ValidationError(
@@ -788,21 +801,27 @@ class InvitationService:
                 metadata={"email": invitation.email, "role": invitation.role},
             )
             return invitation
-
+    
     @staticmethod
     def revoke_invitation(invitation_id, requester):
-        with transaction.atomic():
-            # Find the invitation that should be revoked.
-            invitation = WorkspaceInvitation.objects.select_related(
+        # Find the invitation that should be revoked.
+        invitation = (
+            WorkspaceInvitation.objects.select_related(
                 "workspace",
                 "invited_by",
-            ).filter(
+            )
+            .filter(
                 id=invitation_id,
                 workspace__is_deleted=False,
-            ).first()
-            if invitation is None:
-                raise serializers.ValidationError("Invitation not found.")
+            )
+            .first()
+        )
+        if invitation is None:
+            raise serializers.ValidationError("Invitation not found.")
 
+        InvitationService._expire_invitation_if_needed(invitation)
+
+        with transaction.atomic():
             # Only pending invitations can be revoked.
             if invitation.status != InvitationStatus.PENDING:
                 raise serializers.ValidationError(
@@ -853,35 +872,4 @@ class InvitationService:
             )
             return invitation
     
-    @staticmethod
-    def expire_pending_invitations() -> int:
-        """
-        Expire all pending invitations whose expiry time has passed.
-
-        Returns:
-            int: Number of invitations expired.
-        """
-        with transaction.atomic():
-            now = timezone.now()
-            invitations = list(
-                WorkspaceInvitation.objects.select_for_update().select_related(
-                    "workspace"
-                ).filter(
-                    status=InvitationStatus.PENDING,
-                    expires_at__lte=now,
-                    workspace__is_deleted=False,
-                )
-            )
-            for invitation in invitations:
-                invitation.status = InvitationStatus.EXPIRED
-                invitation.save(update_fields=["status", "updated_at"])
-                ActivityLogService.log_activity(
-                    workspace=invitation.workspace,
-                    actor=None,
-                    action=ActivityAction.INVITATION_EXPIRED,
-                    description=f"Invitation for {invitation.email} expired.",
-                    entity_type="workspace_invitation",
-                    entity_id=invitation.id,
-                    metadata={"email": invitation.email, "role": invitation.role},
-                )
-            return len(invitations)
+    

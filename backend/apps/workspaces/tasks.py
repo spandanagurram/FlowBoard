@@ -1,6 +1,4 @@
 from celery import shared_task
-from django.core.exceptions import ObjectDoesNotExist
-
 from apps.common.email import send_templated_email
 from apps.workspaces.models import WorkspaceInvitation
 from config import settings
@@ -41,10 +39,4 @@ def send_workspace_invitation_email(invitation_id: str) -> None:
    )
 
     
-@shared_task
-def expire_pending_invitations():
-    from .services import InvitationService
-    """
-    Expire all pending invitations that have passed their expiry time.
-    """
-    return InvitationService.expire_pending_invitations()
+

@@ -14,11 +14,5 @@ app.config_from_object(
     namespace="CELERY",
 )
 
-app.conf.beat_schedule = {
-    "expire-pending-invitations": {
-        "task": "apps.workspaces.tasks.expire_pending_invitations",
-        "schedule": crontab(minute="*/1"),
-    },
-}
 
 app.autodiscover_tasks()
