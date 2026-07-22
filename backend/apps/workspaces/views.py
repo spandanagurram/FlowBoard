@@ -161,6 +161,16 @@ class WorkspaceMemberListAPIView(GenericAPIView):
 class WorkspaceInvitationCreateAPIView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
     serializer_class = WorkspaceInvitationCreateSerializer
+    
+    def get(self, request, workspace_id):
+        search = request.query_params.get("search")
+        invitations = InvitationService.list_pending_invitations(
+            requester=request.user,
+            workspace_id=workspace_id,
+            search=search,
+        )
+        serializer = WorkspaceInvitationSerializer(invitations, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, workspace_id):
         serializer = self.get_serializer(data=request.data)
@@ -218,3 +228,5 @@ class InvitationRevokeAPIView(GenericAPIView):
         )
         response_serializer = WorkspaceInvitationSerializer(invitation)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    

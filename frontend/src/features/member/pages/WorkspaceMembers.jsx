@@ -12,10 +12,15 @@ import {
 import DashboardLayout from "../../../layouts/DashboardLayout";
 import Button from "../../../components/ui/Button";
 import MemberList from "../components/MemberList";
+import PendingInvitationList from "../components/PendingInvitationList";
 import { getWorkspaceMembers, changeMemberRole, transferOwnership } from "../../../api/member";
 import { getErrorMessage } from "../../../utils/error";
 import InviteMemberModal from "../components/InviteMemberModal";
-import { createInvitation } from "../../../api/invitation";
+import {
+  createInvitation,
+  getPendingInvitations,
+  revokeInvitation,
+} from "../../../api/invitation";
 import ChangeRoleModal from "../components/ChangeRoleModal";
 import TransferOwnershipModal from "../components/TransferOwnershipModal";
 
@@ -23,13 +28,17 @@ function WorkspaceMembers() {
   const navigate = useNavigate();
   const location = useLocation();
   const { workspaceId } = useParams();
-  
+  const [currentUserId] = useState(
+    () => JSON.parse(localStorage.getItem("user"))?.id
+  );
 
   const workspaceName =
     location.state?.workspaceName || "Workspace";
 
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [pendingInvitationsLoading, setPendingInvitationsLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -39,6 +48,7 @@ function WorkspaceMembers() {
 
   useEffect(() => {
     fetchMembers();
+    fetchPendingInvitations();
   }, [workspaceId]);
 
   const fetchMembers = async () => {
@@ -62,10 +72,39 @@ function WorkspaceMembers() {
       await createInvitation(workspaceId, values);
 
       alert("Invitation sent successfully.");
+
+      await fetchPendingInvitations();
     } catch (error) {
       console.error(error);
       alert(getErrorMessage(error));
       throw error;
+    }
+  };
+
+  async function fetchPendingInvitations() {
+    try {
+      setPendingInvitationsLoading(true);
+
+      const data = await getPendingInvitations(workspaceId);
+      setPendingInvitations(data);
+    } catch (error) {
+      console.error(error);
+      alert(getErrorMessage(error));
+    } finally {
+      setPendingInvitationsLoading(false);
+    }
+  }
+
+  const handleRevokeInvitation = async (invitationId) => {
+    try {
+      await revokeInvitation(invitationId);
+
+      alert("Invitation revoked successfully.");
+
+      await fetchPendingInvitations();
+    } catch (error) {
+      console.error(error);
+      alert(getErrorMessage(error));
     }
   };
 
@@ -176,6 +215,23 @@ function WorkspaceMembers() {
             onTransferOwnership={openTransferModal}
          />
         )}
+
+        <div>
+          <h2 className="text-xl font-semibold mb-4">
+            Pending Invitations
+          </h2>
+
+          {pendingInvitationsLoading ? (
+            <p>Loading pending invitations...</p>
+          ) : (
+            <PendingInvitationList
+              invitations={pendingInvitations}
+              currentUserRole={currentUserRole}
+              currentUserId={currentUserId}
+              onRevoke={handleRevokeInvitation}
+            />
+          )}
+        </div>
       </div>
       <InviteMemberModal
         isOpen={showInviteModal}

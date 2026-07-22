@@ -62,14 +62,15 @@ function CreateTaskModal({
 
       try {
           const data = await getWorkspaceMembers(workspaceId);
-          setMembers(data);
+          setMembers(data.members);
       } catch (error) {
           alert(getErrorMessage(error));
       }
   };
 
+
   const memberOptions = members.map((member) => ({
-    value: member.id,
+    value: member.user_id,
     label: `${member.username} (${member.role})`,
   }));
 

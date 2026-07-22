@@ -16,6 +16,25 @@ export const createInvitation = async (workspaceId, values) => {
   return response.data;
 };
 
+export const getPendingInvitations = async (workspaceId) => {
+  const response = await api.get(
+    `/workspaces/${workspaceId}/invitations/`,
+    getAuthHeader()
+  );
+
+  return response.data;
+};
+
+export const revokeInvitation = async (invitationId) => {
+  const response = await api.post(
+    `/invitations/${invitationId}/revoke/`,
+    {},
+    getAuthHeader()
+  );
+
+  return response.data;
+};
+
 export const getInvitation = async (token) => {
   const response = await api.get(
     `/invitations/${token}/`

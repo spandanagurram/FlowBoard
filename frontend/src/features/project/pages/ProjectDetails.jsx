@@ -23,6 +23,7 @@ function ProjectDetails() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [selectedParentTask, setSelectedParentTask] = useState(null);
 
 
   const fetchProject = async () => {
@@ -103,11 +104,13 @@ function ProjectDetails() {
         ...values,
         assignee: values.assignee || null,
         due_date: values.due_date || null,
+        parent_task: selectedParentTask?.id || null,
       };
 
       await createTask(project.id, payload);
 
       setIsTaskModalOpen(false);
+      setSelectedParentTask(null);
 
       await fetchTasks();
 
@@ -118,6 +121,35 @@ function ProjectDetails() {
       alert(getErrorMessage(error));
     }
   };
+
+  const openTaskModal = () => {
+    setSelectedParentTask(null);
+    setIsTaskModalOpen(true);
+  };
+
+  const openSubtaskModal = (task) => {
+    setSelectedParentTask(task);
+    setIsTaskModalOpen(true);
+  };
+
+  const parentTasks = tasks.filter(
+    (task) => task.parent_task === null
+  );
+
+  const subtasksByParent = tasks.reduce(
+    (subtasks, task) => {
+      if (task.parent_task !== null) {
+        if (!subtasks[task.parent_task]) {
+          subtasks[task.parent_task] = [];
+        }
+
+        subtasks[task.parent_task].push(task);
+      }
+
+      return subtasks;
+    },
+    {}
+  );
 
   if (loading || !project) {
     return (
@@ -183,16 +215,24 @@ function ProjectDetails() {
       />
       <CreateTaskModal
         isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
+        onClose={() => {
+          setIsTaskModalOpen(false);
+          setSelectedParentTask(null);
+        }}
         onSubmit={handleCreateTask}
         workspaceId={project.workspace}
+        title={
+          selectedParentTask
+            ? "Create Subtask"
+            : "Create Task"
+        }
       />
       <div className="mt-8">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold">Tasks</h2>
 
           <Button
-            onClick={() => setIsTaskModalOpen(true)}
+            onClick={openTaskModal}
             className="w-auto"
           >
             + New Task
@@ -205,11 +245,22 @@ function ProjectDetails() {
           </p>
         ) : (
           <div className="grid gap-4">
-            {tasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-              />
+            {parentTasks.map((task) => (
+              <div key={task.id} className="space-y-4">
+                <TaskCard
+                  task={task}
+                  onCreateSubtask={openSubtaskModal}
+                />
+
+                {subtasksByParent[task.id]?.map((subtask) => (
+                  <div
+                    key={subtask.id}
+                    className="ml-8 border-l-2 border-slate-200 pl-4"
+                  >
+                    <TaskCard task={subtask} />
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
         )}

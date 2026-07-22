@@ -51,9 +51,11 @@ function TaskDetails() {
   console.log("Array?", Array.isArray(members));
 
   const memberOptions = members.map((member) => ({
-      value: member.id,
+      value: member.user_id,
       label: `${member.username} (${member.role})`,
   }));
+
+  
 
   const taskInitialValues = useMemo(
     () => ({

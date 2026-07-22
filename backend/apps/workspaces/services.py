@@ -872,4 +872,58 @@ class InvitationService:
             )
             return invitation
     
-    
+    @staticmethod
+    def list_pending_invitations(workspace_id, requester, search=None):
+        # Confirm the workspace exists.
+        workspace = Workspace.objects.filter(
+            id=workspace_id,
+            is_deleted=False,
+        ).first()
+
+        if workspace is None:
+            raise serializers.ValidationError("Workspace not found.")
+
+        # Confirm the requester is an active workspace member.
+        membership = WorkspaceMember.objects.filter(
+            workspace=workspace,
+            user=requester,
+            is_active=True,
+        ).first()
+
+        if membership is None:
+            raise serializers.ValidationError(
+                "You are not a member of this workspace."
+            )
+
+        # Only owners and admins can view pending invitations.
+        if membership.role not in [Role.OWNER, Role.ADMIN]:
+            raise serializers.ValidationError(
+                "You do not have permission to view pending invitations."
+            )
+
+        invitations = (
+            WorkspaceInvitation.objects.select_related(
+                "workspace",
+                "invited_by",
+            )
+            .filter(
+                workspace=workspace,
+            )
+            .order_by("-created_at")
+        )
+
+        # Lazily expire invitations.
+        for invitation in invitations:
+            InvitationService._expire_invitation_if_needed(invitation)
+
+        invitations = invitations.filter(
+            status=InvitationStatus.PENDING,
+        )
+
+        if search:
+            invitations = invitations.filter(
+                email__icontains=search.strip(),
+            )
+
+        return invitations
+        

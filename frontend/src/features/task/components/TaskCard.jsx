@@ -1,7 +1,8 @@
 import Card from "../../../components/ui/Card";
 import { Link } from "react-router-dom";
+import Button from "../../../components/ui/Button";
 
-export default function TaskCard({ task }) {
+export default function TaskCard({ task, onCreateSubtask }) {
   return (
     <Card>
       <Link
@@ -38,6 +39,17 @@ export default function TaskCard({ task }) {
 
         </div>
       </Link>
+
+      {onCreateSubtask && (
+        <div className="mt-4">
+          <Button
+            className="w-auto"
+            onClick={() => onCreateSubtask(task)}
+          >
+            + New Subtask
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
