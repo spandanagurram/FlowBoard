@@ -1,8 +1,30 @@
-# Files and directories intentionally excluded from version control.
+# Environment
 .env
 backend/.env
-venv/
 
 # Python
+venv/
+backend/venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+
+# Django
+*.log
+media/
+backend/staticfiles/
+
+# Database
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+celerybeat-schedule*
+
