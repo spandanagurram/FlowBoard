@@ -38,13 +38,10 @@ function InvitationPage() {
 
   const ensureLoggedIn = () => {
     const accessToken = localStorage.getItem("access");
-    console.log("accessToken =", accessToken);
 
     if (accessToken) {
       return true;
     }
-    console.log("redirecting to login page with redirectTo =", `/invitations/${token}`);
-
     navigate("/login", {
       state: {
         redirectTo: `/invitations/${token}`,

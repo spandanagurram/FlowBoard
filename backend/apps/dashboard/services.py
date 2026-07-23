@@ -14,10 +14,8 @@ class DashboardService:
 
         cached_summary = get_cache(cache_key)
         if cached_summary:
-            print("CACHE HIT")
             return cached_summary
         
-        print("CACHE MISS")
         
         workspace_filter = {
             "members__user": user,

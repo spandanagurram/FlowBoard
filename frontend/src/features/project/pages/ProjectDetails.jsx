@@ -99,7 +99,6 @@ function ProjectDetails() {
   const handleCreateTask = async (values) => {
     try {
       const { status, ...taskData } = values;
-      console.log(values);
       const payload = {
         ...values,
         assignee: values.assignee || null,

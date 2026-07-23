@@ -47,8 +47,6 @@ function TaskDetails() {
       }
   };
 
-  console.log("members =", members);
-  console.log("Array?", Array.isArray(members));
 
   const memberOptions = members.map((member) => ({
       value: member.user_id,
@@ -71,7 +69,6 @@ function TaskDetails() {
 
   const handleUpdateTask = async (values) => {
     try {
-      console.log("Update Payload:", values);
       const payload = {
         ...values,
         assignee: values.assignee || null,

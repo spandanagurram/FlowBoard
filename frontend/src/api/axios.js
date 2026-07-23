@@ -26,9 +26,6 @@ api.interceptors.response.use(
   (response) => response,
 
   async (error) => {
-      console.log("❌ Response Interceptor Triggered");
-      console.log("Status:", error.response?.status);
-      console.log("URL:", error.config?.url);
     const originalRequest = error.config;
 
     if (!originalRequest) {
@@ -65,9 +62,6 @@ api.interceptors.response.use(
     try {
       const refresh = localStorage.getItem("refresh");
 
-      console.log("🔄 Access token expired. Refreshing...");
-      console.log("Refresh token:", localStorage.getItem("refresh"));
-
       const response = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/auth/token/refresh/`,
         {
@@ -76,8 +70,6 @@ api.interceptors.response.use(
       );
 
       const newAccessToken = response.data.access;
-      console.log("✅ Refresh successful");
-      console.log("New Access Token:", newAccessToken);
 
       localStorage.setItem("access", newAccessToken);
 
@@ -87,8 +79,6 @@ api.interceptors.response.use(
 
       return api(originalRequest);
     } catch (refreshError) {
-      console.log("❌ Refresh failed");
-      console.log(refreshError.response?.data);
       processQueue(refreshError, null);
 
       localStorage.removeItem("access");
