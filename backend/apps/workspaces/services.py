@@ -649,11 +649,8 @@ class InvitationService:
                 entity_id=invitation.id,
                 metadata={"email": invitation.email, "role": invitation.role},
             )
-            try:
-                send_workspace_invitation_email.delay(str(invitation.id))
-            except Exception:
-                logger.exception("Failed to enqueue workspace invitation email.")
-                raise
+            # Send the invitation email asynchronously
+            send_workspace_invitation_email.delay(str(invitation.id))
             return invitation
         
     @staticmethod

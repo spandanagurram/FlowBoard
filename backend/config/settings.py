@@ -14,6 +14,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from decouple import config
+import ssl
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -158,6 +159,13 @@ SIMPLE_JWT = {
 
 CELERY_BROKER_URL = config("REDIS_URL")
 CELERY_RESULT_BACKEND = config("REDIS_URL")
+CELERY_BROKER_USE_SSL = {
+    "ssl_cert_reqs": ssl.CERT_NONE,
+}
+
+CELERY_REDIS_BACKEND_USE_SSL = {
+    "ssl_cert_reqs": ssl.CERT_NONE,
+}
 
 
 
