@@ -24,12 +24,12 @@ const menuItems = [
   {
     label: "Projects",
     icon: FolderKanban,
-    path: "/projects",
+    path: "/workspaces",
   },
   {
     label: "Tasks",
     icon: SquareCheckBig,
-    path: "/tasks",
+    path: "/workspaces",
   },
 ];
 

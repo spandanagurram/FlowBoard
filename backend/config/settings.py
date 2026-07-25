@@ -35,6 +35,12 @@ ALLOWED_HOSTS = config(
     cast=lambda v: [host.strip() for host in v.split(",")],
 )
 
+USE_CELERY = config(
+    "USE_CELERY",
+    default=True,
+    cast=bool,
+)
+
 
 # Application definition
 

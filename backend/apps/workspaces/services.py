@@ -4,7 +4,9 @@ from django.utils import timezone
 from psycopg import logger
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound
-from apps.workspaces.tasks import send_workspace_invitation_email
+from apps.common.task_dispatcher import (
+    dispatch_workspace_invitation_email,
+)
 from apps.activities.models import ActivityAction
 from apps.activities.services import ActivityLogService
 from apps.common.cache import delete_dashboard_cache
@@ -650,7 +652,7 @@ class InvitationService:
                 metadata={"email": invitation.email, "role": invitation.role},
             )
             # Send the invitation email asynchronously
-            send_workspace_invitation_email.delay(str(invitation.id))
+            dispatch_workspace_invitation_email(invitation.id)
             return invitation
         
     @staticmethod
