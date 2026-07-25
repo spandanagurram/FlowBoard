@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from psycopg import logger
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound
 from apps.workspaces.tasks import send_workspace_invitation_email
@@ -648,7 +649,11 @@ class InvitationService:
                 entity_id=invitation.id,
                 metadata={"email": invitation.email, "role": invitation.role},
             )
-            send_workspace_invitation_email.delay(str(invitation.id))
+            try:
+                send_workspace_invitation_email.delay(str(invitation.id))
+            except Exception:
+                logger.exception("Failed to enqueue workspace invitation email.")
+                raise
             return invitation
         
     @staticmethod
