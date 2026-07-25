@@ -21,16 +21,6 @@ const menuItems = [
     icon: Briefcase,
     path: "/workspaces",
   },
-  {
-    label: "Projects",
-    icon: FolderKanban,
-    path: "/workspaces",
-  },
-  {
-    label: "Tasks",
-    icon: SquareCheckBig,
-    path: "/workspaces",
-  },
 ];
 
 const handleLogout = async () => {
